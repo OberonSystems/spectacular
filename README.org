@@ -1,0 +1,21 @@
+* Spectacular
+
+  A clojure/clojurescript library that adds a meta layer above clojure
+  spec, to help with common tasks related to business applications.
+
+  Including;
+
+  - Declarations of Entities
+  - Declarations of Rules
+  - Validation with human readable error messages
+
+  More to come...
+
+** Usage
+
+** License
+
+Copyright © 2020 Oberon Systems P/L
+
+Distributed under the Eclipse Public License either version 1.0 or (at
+your option) any later version.
