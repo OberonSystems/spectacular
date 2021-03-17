@@ -1,0 +1,6 @@
+* Ramblings
+
+  The Key is the spec, Keys are namespaced, specs can be registered
+  elsewhere.
+
+  Can we issue a warning if there is no spec associated with a key?
