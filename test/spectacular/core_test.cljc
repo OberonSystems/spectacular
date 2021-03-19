@@ -1,65 +1,54 @@
 (ns spectacular.core-test
   (:require [clojure.test :refer :all]
-            [clojure.spec.alpha :as s]
-            ;;
-            [camel-snake-kebab.core :as csk]
-            [camel-snake-kebab.extras :as cske])
-  (:require [spectacular.core :refer :all]
+            [clojure.spec.alpha :as s])
+  (:require [spectacular.core    :refer :all :as sp]
+            [spectacular.graphql :as gql]
             :reload))
 
 ;;; Some globals to then test with
 
-(register-enum ::guitar-brand
-               [::fender ::gibson ::prs ::martin ::gretch]
-               :captions {::prs "Paul Read Smith"}
-               :description "A small selection of Guitar Brands")
+(register-scalar ::string     string?
+                 ::sp/pg-type ::text
+                 ;;
+                 ::sp/description "Non Blank String")
+
+(register-scalar ::integer int?)
+
+(register-scalar ::uuid uuid?)
 
 ;;;
 
-(register-data-type ::string      string?
-                    :graphql-type ::string
-                    :db-type      ::text)
-
-(register-data-type ::integer     int?
-                    :graphql-type ::string
-                    :db-type      ::text)
-
-(register-data-type ::uuid        uuid?
-                    :graphql-type ::uuid
-                    :db-type      ::uuid)
+(register-enum ::guitar-brand [::fender ::gibson ::prs ::martin ::gretch]
+               ;;
+               ::sp/labels      {::prs "Paul Reed Smith"}
+               ::sp/description "A small selection of Guitar Brands")
 
 ;;;
 
-(register-field ::guitar-uuid ::uuid
-                :caption      "Guitar ID"
-                :description  "Globally Unique ID.")
+(register-field ::guitar-uuid    ::uuid
+                ::sp/label       "Guitar ID"
+                ::sp/description "Globally Unique ID."
+                ::sp/gql-type    :weirdo-uuid)
 
-(register-field ::name        ::string
-                :caption      "Guitar"
-                :description  "Usually a six stringed instrument.")
+(register-field ::name           ::string
+                ::sp/label       "Guitar"
+                ::sp/description "Usually a six stringed instrument.")
 
 (register-field ::guitar-brand ::guitar-brand
-                :caption      "Guitar Brand")
+                ::sp/label     "Guitar Brand")
 
-(register-field ::age         ::integer
-                :caption      "Age"
-                :description  "Age in years.")
+(register-field ::age            ::integer
+                ::sp/label       "Age"
+                ::sp/description "Age in years.")
 
-(register-entity ::guitar   [::guitar-uuid ::guitar-brand ::name ::age]
-                 :identity  [::guitar-uuid]
-                 :optional? #{::age}
-                 :fields    {::name {:caption     "Guitar Name"
-                                     :description "BB King called his 'Lucille'."}})
-
-(deftest testing-something
-  (testing "something"
-    (is (s/valid? ::integer 10))
-    (is (not (s/valid? ::integer "100")))
-    ;;
-    (is (s/valid? ::guitar {::guitar-uuid  #uuid "2f67ecd2-196b-4cc8-8b43-4b0d11d614f9"
-                            ::guitar-name  "Lucille"
-                            ::guitar-brand ::gibson
-                            ::age          10}))))
+(register-entity ::guitar [::guitar-uuid ::guitar-brand ::name ::age]
+                 ;;
+                 ::sp/description "Traditionally a 6 stringed instrument."
+                 ;;
+                 ::sp/identity  [::guitar-uuid]
+                 ::sp/optional? #{::age}
+                 ::sp/fields    {::name {::sp/label       "Guitar Name"
+                                         ::sp/description "BB King called his 'Lucille'."}})
 
 (def +test-schema+
   {:enums   [::guitar-brand
@@ -68,27 +57,29 @@
              [:just-for-graphql-1 [:graph1 :graph2 :graph3] "A Description"]
              [:just-for-graphql-2 [:graph1 :graph2 :graph3]]]
    ;;
-   :objects [{:entity ::brand :exclude [::field1 ::field2]}
+   :objects [{:object-type :entity-token :entity-key ::guitar}
+             {:object-type :entity       :entity-key ::guitar}
              ;;
-             {:entity ::guitar :token? true}
-             {:entity ::guitar :include [{::brand {:resolve 'lookup-brand}}]}
-             ;;
-             ;; Can also declare inline if need be.
-             {:object :pick
-              :fields [[:colour 'String "Colour"]
-                       [:brand  '(no-null String) "Brand of Pick"]]}]
-   :queries {:fetch-guitars {:type    [::guitar]
+             ;; Can also declare inline if need be, but you don't get
+             ;; any of the other smarts like auto Input objects, etc.
+             {:object-type :graphql
+              :graphql-key :pick
+              :description "Some like em thick and others like em thin."
+              :fields      [[:colour 'String "Colour"]
+                            [:brand  '(non-null String) "Brand of Pick"]]}]
+   ;;
+   :queries [:fetch-guitars {:type    [::guitar]
                              :args    [::brand]
                              :resolve 'fetch-guitars}
              ;;
              :fetch-guitar  {:type    ::guitar
                              :args    [::guitar-uuid
-                                       {:key         :brand-like
+                                       {:graphql-key :brand-like
                                         :type        :string
                                         :description "Wild card search for guitar."}]
-                             :resolve 'fetch-guitar}}
+                             :resolve 'fetch-guitar}]
    ;;
-   :input-objects [{:entity ::guitar :generate :all}]
+   :input-objects [{:object-type :entity :entity-key ::guitar :generate :all}]
    :mutations     {:add-guitar    {:type ::guitar
                                    :args [:guitar-input-add]
                                    :resolve '(add-entity ::guitar %)}
@@ -98,50 +89,46 @@
                    :remove-guitar {:type 'boolean
                                    :args [:guitar-input-token]}}})
 
-(defn -assoc-description
-  [record description]
-  (cond-> record
-    description (assoc :description description)))
+(deftest test-scalars
+  (is (= (get-scalar-description ::string) "Non Blank String"))
+  (is      (s/valid? ::string "blah"))
+  (is (not (s/valid? ::string 10))))
 
-(defmulti transform-enum (fn [info]
-                           (cond
-                             (keyword? info) :spec
-                             (vector?  info) :inline)))
+(deftest test-enums
+  (is (= (get-enum-labels ::guitar-brand)
+         [[::fender "Fender"]
+          [::gibson "Gibson"]
+          [::prs    "Paul Reed Smith"]
+          [::martin "Martin"]
+          [::gretch "Gretch"]]))
+  (is (s/valid? ::guitar-brand ::fender))
+  (is (not (s/valid? ::guitar-brand ::something-random))))
 
-(defmethod transform-enum :spec
-  [spec]
-  [(csk/->PascalCaseKeyword spec)
-   (-> {:values (mapv csk/->SCREAMING_SNAKE_CASE_KEYWORD (get-enum-values spec))}
-       (-assoc-description (get-enum-description spec)))])
+(deftest test-entities
+  (is (s/valid? ::guitar {::guitar-uuid  #uuid "2f67ecd2-196b-4cc8-8b43-4b0d11d614f9"
+                          ::guitar-brand ::gibson
+                          ::name         "Lucille"
+                          ::age          10})))
 
-(defmethod transform-enum :inline
-  [[key values description]]
+(deftest test-graphql
+  (is (= (mapv gql/transform-enum (+test-schema+ :enums))
+         [[:GuitarBrand {:values [:FENDER :GIBSON :PRS :MARTIN :GRETCH]}]
+          [:JustForGraphql1
+           {:values [:GRAPH_1 :GRAPH_2 :GRAPH_3],
+            :description "A Description"}]
+          [:JustForGraphql2 {:values [:GRAPH_1 :GRAPH_2 :GRAPH_3]}]]))
 
-  [(csk/->PascalCaseKeyword key)
-   (-> {:values (mapv csk/->SCREAMING_SNAKE_CASE_KEYWORD values)}
-       (-assoc-description description))])
-
-(defmulti transform-object (fn [record]
-                             (cond
-                               (contains? record :entity) :entity
-                               (contains? record :object) :object
-                               :else (throw (ex-info "Can't transform object" record)))))
-
-(defmethod transform-object :entity
-  [{:keys [entity] :as record}]
-  [(csk/->PascalCaseKeyword entity)
-   (-> {:fields (map (fn [{:keys [data-type description] :as record}]
-                       (-> {:type data-type}
-                           (-assoc-description description)))
-                     (get-entity-fields entity))}
-       (-assoc-description (get-entity-description entity)))])
-
-(defmethod transform-object :object
-  [{:keys [object fields description] :as record}]
-  [(csk/->PascalCaseKeyword object)
-   (-> {:fields (map (fn [[key type description]]
-                       [(csk/->camelCaseKeyword key)
-                        (-> {:type type}
-                            (-assoc-description description))])
-                     fields)}
-       (-assoc-description description))])
+  (is (= (mapv gql/transform-object (+test-schema+ :objects))
+         [[:GuitarToken {:fields {:guitarUuid {:type 'WeirdoUuid}}}]
+          [:Guitar
+           {:fields
+            {:guitarUuid {:type '(non-null WeirdoUuid)}
+             :guitarBrand {:type '(non-null GuitarBrand)}
+             :name {:type '(non-null String)}
+             :age {:type '(non-null Integer)}}
+            :description "Traditionally a 6 stringed instrument."}]
+          [:Pick
+           {:fields
+            {:colour {:type 'String :description "Colour"}
+             :brand {:type '(non-null String) :description "Brand of Pick"}}
+            :description "Some like em thick and others like em thin."}]])))
