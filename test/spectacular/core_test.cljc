@@ -115,21 +115,40 @@
   (is (= (mapv gql/transform-enum (+test-schema+ :enums))
          [[:GuitarBrand {:values [:FENDER :GIBSON :PRS :MARTIN :GRETCH]}]
           [:JustForGraphql1
-           {:values [:GRAPH_1 :GRAPH_2 :GRAPH_3],
+           {:values [:GRAPH_1 :GRAPH_2 :GRAPH_3]
             :description "A Description"}]
           [:JustForGraphql2 {:values [:GRAPH_1 :GRAPH_2 :GRAPH_3]}]]))
 
   (is (= (mapv gql/transform-object (+test-schema+ :objects))
-         [[:GuitarToken {:fields {:guitarUuid {:type 'WeirdoUuid}}}]
+         [[:GuitarToken
+           {:fields
+            {:guitarUuid
+             {:type '(non-null WeirdoUuid)
+              :description "Globally Unique ID."}}}]
           [:Guitar
            {:fields
-            {:guitarUuid {:type '(non-null WeirdoUuid)}
-             :guitarBrand {:type '(non-null GuitarBrand)}
-             :name {:type '(non-null String)}
-             :age {:type '(non-null Integer)}}
+            {:guitarUuid
+             {:type 'WeirdoUuid :description "Globally Unique ID."}
+             :guitarBrand
+             {:type 'GuitarBrand
+              :description "A small selection of Guitar Brands"}
+             :name
+             {:type 'String :description "BB King called his 'Lucille'."}
+             :age {:type 'Integer :description "Age in years."}}
             :description "Traditionally a 6 stringed instrument."}]
           [:Pick
            {:fields
             {:colour {:type 'String :description "Colour"}
              :brand {:type '(non-null String) :description "Brand of Pick"}}
-            :description "Some like em thick and others like em thin."}]])))
+            :description "Some like em thick and others like em thin."}]]))
+
+  (is (= (mapv gql/transform-input-object (+test-schema+ :input-objects))
+         [[:GuitarInToken
+           {:fields {:guitarUuid {:type '(non-null WeirdoUuid)}}
+            :description "Traditionally a 6 stringed instrument."}]
+          [:GuitarIn
+           {:fields
+            {:guitarBrand {:type '(non-null GuitarBrand)}
+             :name {:type '(non-null String)}
+             :age {:type 'Integer}}
+            :description "Traditionally a 6 stringed instrument."}]])))
