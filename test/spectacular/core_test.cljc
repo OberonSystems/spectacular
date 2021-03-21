@@ -79,7 +79,8 @@
                                         :description "Wild card search for guitar."}]
                              :resolve 'fetch-guitar}]
    ;;
-   :input-objects [{:object-type :entity :entity-key ::guitar :generate :all}]
+   :input-objects [{:object-type :entity-token   :entity-key ::guitar}
+                   {:object-type :entity-content :entity-key ::guitar}]
    :mutations     {:add-guitar    {:type ::guitar
                                    :args [:guitar-input-add]
                                    :resolve '(add-entity ::guitar %)}

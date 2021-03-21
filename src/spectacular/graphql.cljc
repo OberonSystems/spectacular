@@ -39,8 +39,9 @@
 
 (defn field->gql-type
   [{::sp/keys [field-key scalar-key gql-type optional?]}
-   & {:keys [force-optional?]}]
-  (println field-key scalar-key gql-type optional?)
+   & {:keys [force-optional? debug?]}]
+  (when debug?
+    (println field-key scalar-key gql-type optional?))
   (let [gql-schema-type (-> (or gql-type (-> scalar-key name))
                             csk/->PascalCaseSymbol)]
     (cond
@@ -89,22 +90,28 @@
 
 (defmulti transform-input-object :object-type)
 
-(defmethod transform-input-object :entity
+(defmethod transform-input-object :entity-token
+  [{:keys [entity-key]}]
+  (if-let [fields (some->> entity-key
+                           get-identity-fields
+                           (map (fn [{::sp/keys [field-key] :as field}]
+                                  [(csk/->camelCaseKeyword field-key)
+                                   {:type (field->gql-type field)}]))
+                           (into {})) ]
+    [(-> (csk/->PascalCaseString entity-key) (str "InToken") keyword)
+     (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))]
+    (throw (ex-info "An Entity must have Identity Keys in order for it to be transformed it to an Input Entity Token."
+                    {:entity-key entity-key}))))
+
+(defmethod transform-input-object :entity-content
   [{:keys [generate entity-key]}]
-  (let [entity-name (csk/->PascalCaseString entity-key)]
-    [(when-let [fields (some->> entity-key
-                                get-identity-fields
-                                (map (fn [{::sp/keys [field-key] :as field}]
-                                       [(csk/->camelCaseKeyword field-key)
-                                        {:type (field->gql-type field)}]))
-                                (into {}))]
-       [(-> (str entity-name "InToken") keyword)
-        (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))])
-     (when-let [fields  (some->> entity-key
-                                 get-content-fields
-                                 (map (fn [{::sp/keys [field-key] :as field}]
-                                        [(csk/->camelCaseKeyword field-key)
-                                         {:type (field->gql-type field)}]))
-                                 (into {}))]
-       [(-> (str entity-name "In") keyword)
-        (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))])]))
+  (if-let [fields  (some->> entity-key
+                            get-content-fields
+                            (map (fn [{::sp/keys [field-key] :as field}]
+                                   [(csk/->camelCaseKeyword field-key)
+                                    {:type (field->gql-type field)}]))
+                            (into {}))]
+    [(-> (csk/->PascalCaseString entity-key) (str "In") keyword)
+     (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))]
+    (throw (ex-info "An Entity must have Content Keys in order for it to be transformed it to an Input Entity."
+                    {:entity-key entity-key}))))
