@@ -4,7 +4,7 @@
 
 ;;;
 
-(defn k->label
+(defn keyword->label
   [k]
   (-> (csk/->Camel_Snake_Case_String k)
       (s/replace "_" " ")

@@ -3,7 +3,7 @@
             [clojure.spec.alpha :as s]
             [clojure.set :refer [subset?]]
             ;;
-            [spectacular.utils :refer [k->label]]))
+            [spectacular.utils :refer [keyword->label]]))
 
 ;;;
 
@@ -84,7 +84,7 @@
     (->> (get-enum-values k)
          (mapv (fn [value]
                  [value (or (get labels value)
-                            (k->label value))])))))
+                            (keyword->label value))])))))
 
 ;;;
 
