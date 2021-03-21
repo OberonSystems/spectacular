@@ -1,7 +1,7 @@
 (ns spectacular.core
   (:require [clojure.pprint :refer [pprint]]
             [clojure.spec.alpha :as s]
-            [clojure.set :refer [subset?]]
+            [clojure.set :refer [subset? intersection]]
             ;;
             [spectacular.utils :refer [keyword->label]]))
 
@@ -24,13 +24,15 @@
   [cache k kind]
   (if-let [record (get @cache k)]
     record
-    (throw (ex-info (str kind " not found.") k))))
+    (throw (ex-info (str kind " not found.")
+                    {:k k :kind kind}))))
 
 (defn -get-in
   [cache k ks kind]
   (if-let [val (get-in @cache k ks)]
     val
-    (throw (ex-info (str kind " not found.") k))))
+    (throw (ex-info (str kind " not found.")
+                    {:k k :ks ks :kind kind}k))))
 
 (defn -exists?
   [cache k]
@@ -136,42 +138,45 @@
 (defonce +entities+ (atom {}))
 
 (defmacro register-entity
-  [k field-ks & {::keys [identity optional] :as info}]
-  ;; FIXME: clean this up, we don't need all the gensyms if we check
-  ;; the macro input types.
-  (let [k#         k
-        field-ks#  field-ks
-        info#      info
+  [k field-keys & {::keys [identity-keys optional-keys] :as info}]
+  ;; FIXME: Add spec checks for all field keys to be non-empty sequences of
+  ;; namespaced keys to this funciont.
+  (let [field-key?    (set field-keys)
+        identity-key? (set identity-keys)
+        optional-key? (set optional-keys)
         ;;
-        field-ks?  (set field-ks)
-        identity?  (set identity)
-        optional?  (set optional)
+        required-keys (some->> field-keys (remove optional-key?) seq vec)
+        content-keys  (some->> field-keys (remove identity-key?) seq vec)
         ;;
-        error      (cond
-                     (and identity (not (subset? identity? field-ks?))) "Identity must be a subset of fields."
-                     (and optional (not (subset? optional? field-ks?))) "Optional must be a subset of fields."
-                     (and optional      (subset? optional? identity?))  "Optional cannot be a subset of identity.")
-        _          (when error
-                     (throw (ex-info error {:k          k
-                                            :field-keys field-ks
-                                            :identity   identity
-                                            :optional   optional})))
-        required#  (->> field-ks (remove optional?) vec)
-        optional#  optional]
-    (when-let [unregistered (->> field-ks (remove field?) seq)]
-      (throw (ex-info "Cannot register entity with unregistered field."
+        content-key?  (set content-keys)
+        ;;
+        error (cond
+                (and identity-keys (not (subset? identity-key? field-key?))) "Identity keys must be a subset of field keys."
+                (and optional-keys (not (subset? optional-key? field-key?))) "Optional keys must be a subset of field keys."
+                (-> (intersection identity-key? optional-key?) empty? not)   "Identity and Optional keys cannot intersect.")]
+    (when error
+      (throw (ex-info error {:k          k
+                             :field-keys      field-keys
+                             :identity-keys   identity-keys
+                             :optional-keys   optional-keys})))
+    (when-let [unregistered (->> field-keys (remove field?) seq)]
+      (throw (ex-info "Cannot register an entity with an unregistered fields."
                       {:k k :unregistered unregistered})))
     `(do
-       (s/def ~k (s/keys :req ~required# :opt ~optional#))
-       (-set! +entities+ ~k (assoc ~info# ::field-keys ~field-ks#)))))
+       (s/def ~k (s/keys :req ~required-keys
+                         :opt ~optional-keys))
+       (-set! +entities+ ~k (assoc ~info
+                                   ::field-keys   ~field-keys
+                                   ::content-keys ~content-keys
+                                   ;;
+                                   ::field-key?     ~field-key?
+                                   ::identity-key?  ~identity-key?
+                                   ::optional-key?  ~optional-key?
+                                   ::content-key?   ~content-key?)))))
 
 (defn get-entity
   ([k]      (-get +entities+ k "Entity"))
   ([k & ks] (-> (get-entity k) (get-in ks))))
-
-(defn get-entity-identity
-  [k]
-  (get-entity k ::identity))
 
 (defn get-entity-label
   [k]
@@ -181,10 +186,39 @@
   [k]
   (get-entity k ::description))
 
-(defn get-entity-fields
+(defn get-field-keys
   [k]
-  (let [optional? (-> (get-entity k ::optional) set)]
-    (->> (get-entity k ::field-keys)
-         get-fields
-         (map (fn [{::keys [field-key] :as record}]
-                (assoc record ::optional? (-> (optional? field-key) boolean)))))))
+  (get-entity k ::field-keys))
+
+(defn get-identity-keys
+  [k]
+  (get-entity k ::identity-keys))
+
+(defn get-optional-keys
+  [k]
+  (get-entity k ::optional-keys))
+
+(defn get-content-keys
+  [k]
+  (get-entity k ::content-keys))
+
+(defn get-entity-fields
+  ([k]
+   (get-entity-fields k (get-entity k ::field-keys)))
+  ([k fields]
+   (let [optional-key? (get-entity k ::optional-key?)
+         overrides     (get-entity k ::fields)]
+     (->> fields
+          get-fields
+          (map (fn [{::keys [field-key] :as record}]
+                 (merge record
+                        (get overrides field-key)
+                        (when (optional-key? field-key) {::optional? true}))))))))
+
+(defn get-identity-fields
+  [k]
+  (->> k get-identity-keys (get-entity-fields k)))
+
+(defn get-content-fields
+  [k]
+  (->> k get-content-keys (get-entity-fields k)))

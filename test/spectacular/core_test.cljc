@@ -45,10 +45,10 @@
                  ;;
                  ::sp/description "Traditionally a 6 stringed instrument."
                  ;;
-                 ::sp/identity  [::guitar-uuid]
-                 ::sp/optional? #{::age}
-                 ::sp/fields    {::name {::sp/label       "Guitar Name"
-                                         ::sp/description "BB King called his 'Lucille'."}})
+                 ::sp/identity-keys [::guitar-uuid]
+                 ::sp/optional-keys [::age]
+                 ::sp/fields        {::name #::sp{:label       "Guitar Name"
+                                                  :description "BB King called his 'Lucille'."}})
 
 (def +test-schema+
   {:enums   [::guitar-brand
