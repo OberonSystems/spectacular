@@ -164,40 +164,41 @@
       `(~'non-null ~sym)
       sym)))
 
-(defmulti transform-arg (fn [arg-key {:keys [arg-type] :as record}]
+(defmulti transform-arg (fn [arg-key {:keys [type] :as record}]
                           (cond
-                            (scalar? arg-type) :scalar
-                            (field?  arg-type) :field
-                            (entity? arg-type) :entity
+                            (scalar? type) :scalar
+                            (field?  type) :field
+                            (entity? type) :entity
                             ;;
-                            (keyword? arg-type) :graphql
-                            :else (throw (ex-info "Unknown arg type" {:arg-key arg-key :record record})))))
+                            (keyword? type) :graphql
+                            :else (throw (ex-info "Unknown arg type" {:arg-key arg-key
+                                                                      :type    type})))))
 
 (defmethod transform-arg :scalar
-  [arg-key {:keys [arg-type required? description]}]
-  (let [{::sp/keys [graphql-type] :as record} (get-scalar arg-type)]
+  [arg-key {:keys [type required? description]}]
+  (let [{::sp/keys [gql-type] :as record} (get-scalar type)]
     [(csk/->camelCaseKeyword arg-key)
-     (-> {:type (maybe-non-null (or graphql-type arg-key) required?)}
+     (-> {:type (maybe-non-null (or gql-type arg-key) required?)}
          (-assoc-description (or description (::sp/description record))))]))
 
 (defmethod transform-arg :field
-  [arg-key {:keys [arg-type required? description]}]
-  (let [{::sp/keys [gql-type scalar-key] :as record} (get-field arg-type)]
+  [arg-key {:keys [type required? description]}]
+  (let [{::sp/keys [gql-type scalar-key] :as record} (get-field type)]
     [(csk/->camelCaseKeyword arg-key)
      (-> {:type (maybe-non-null (or gql-type scalar-key) required?)}
          (-assoc-description (or description (::sp/description record))))]))
 
 (defmethod transform-arg :entity
-  [arg-key {:keys [arg-type required? description]}]
-  (let [record (get-entity arg-type)]
+  [arg-key {:keys [type required? description]}]
+  (let [record (get-entity type)]
     [(csk/->camelCaseKeyword arg-key)
-     (-> {:type (maybe-non-null arg-type required?)}
+     (-> {:type (maybe-non-null type required?)}
          (-assoc-description (or description (::sp/description record))))]))
 
 (defmethod transform-arg :graphql
-  [arg-key {:keys [arg-type description required?] :as record}]
+  [arg-key {:keys [type description required?] :as record}]
   [(csk/->camelCaseKeyword arg-key)
-   (-> {:type (maybe-non-null arg-type required?)}
+   (-> {:type (maybe-non-null type required?)}
        (-assoc-description description))])
 
 (defn -transform-arg
@@ -214,12 +215,12 @@
     (csk/->PascalCaseSymbol k)))
 
 (defn transform-query
-  [query-key {:keys [args return-type description resolve] :as record}]
-  (when-not return-type
-    (throw (ex-info "Query must have a return-type" {:query-key query-key
+  [query-key {:keys [args type description resolve] :as record}]
+  (when-not type
+    (throw (ex-info "Query must have a return type" {:query-key query-key
                                                      :record    record})))
   [(csk/->camelCaseKeyword query-key)
-   (cond-> {:type (transform-return-type return-type)}
+   (cond-> {:type (transform-return-type type)}
      args        (assoc :args        (->> args (map -transform-arg) (into {})))
      resolve     (assoc :resolve     resolve)
      description (assoc :description description))])

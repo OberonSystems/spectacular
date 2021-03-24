@@ -177,31 +177,28 @@
                        :pickup3     {:type 'Pickup3}}
                       :description "Traditionally a 6 stringed instrument."}}})))
 
-#_
 (deftest gql-transform-args
-  (is (= (gql/transform-arg :wildcard {:arg-type :graphql :gql-type :string :description "Use * for wildcard"})
-         [:wildcard {:type '(non-null String) :description "Use * for wildcard"}]))
+  (is (= (gql/transform-arg :wildcard {:type        :string
+                                       :description "Use * for wildcard"})
+         [:wildcard {:type 'String :description "Use * for wildcard"}]))
 
-  (is (= (gql/transform-query-arg {:arg-key ::guitar-brand})
-         [:guitarBrand
-          {:type 'GuitarBrand
-           :description "A small selection of Guitar Brands"}]))
+  (is (= (gql/transform-arg ::guitar-brand {:type ::guitar-brand})
+         [:guitarBrand {:type 'GuitarBrand
+                        :description "A small selection of Guitar Brands"}]))
 
-  (is (= (gql/transform-query-arg {:arg-key ::guitar :required? true})
-         [:guitar
-          {:type '(non-null Guitar)
-           :description "Traditionally a 6 stringed instrument."}])))
+  (is (= (gql/transform-arg ::guitar {:type ::guitar :required? true})
+         [:guitar {:type '(non-null Guitar)
+                   :description "Traditionally a 6 stringed instrument."}])))
 
 (deftest gql-schema-queries
-  (is (= (gql/make-schema {:queries {:fetch-guitars {:args        {:guitar-brand {:arg-type ::guitar-brand}
-                                                                   :wildcard     {:arg-type    :string
+  (is (= (gql/make-schema {:queries {:fetch-guitars {:args        {:guitar-brand {:type ::guitar-brand}
+                                                                   :wildcard     {:type :string
                                                                                   :description "Wild card search for guitar."}
-                                                                   :page         {:arg-type ::gql/page}}
-                                                     :return-type ::paged-guitars
+                                                                   :page         {:type ::gql/page}}
+                                                     :type        ::paged-guitars
                                                      :resolve     'fetch-guitars}
-                                     :fetch-guitar  {:args        {:token {:arg-type  ::guitar-token
-                                                                           :required? true}}
-                                                     :return-type ::guitar
+                                     :fetch-guitar  {:args        {:token {:type ::guitar-token :required? true}}
+                                                     :type        ::guitar
                                                      :description "Fetches a single guitar"
                                                      :resolve     'fetch-guitar}}})
          {:queries {:fetchGuitars {:type 'PagedGuitars
