@@ -72,11 +72,11 @@
 (defmethod transform-object :entity-token
   [object-key {:keys [entity-key] :as record}]
   (if-let [fields (->> (get-identity-fields entity-key)
-                           (map (fn [{::sp/keys [field-key description] :as field}]
-                                  [(csk/->camelCaseKeyword field-key)
-                                   (-> {:type (field->gql-type field)}
-                                       (-assoc-description description))]))
-                           (into {}))]
+                       (map (fn [{::sp/keys [field-key description] :as field}]
+                              [(csk/->camelCaseKeyword field-key)
+                               (-> {:type (field->gql-type field)}
+                                   (-assoc-description description))]))
+                       (into {}))]
     [(csk/->PascalCaseKeyword object-key) {:fields fields}]
     (throw (ex-info "An Entity must have identity fields in order for it to be transformed it to an Entity Token."
                     {:object-key object-key :record record}))))
@@ -96,9 +96,14 @@
   [object-key {:keys [fields description] :as record}]
   [(csk/->PascalCaseKeyword object-key)
    (-> {:fields (->> fields
-                     (map (fn [field-key field]
+                     (map (fn [[field-key {:keys [gql-type description] :as field}]]
                             [(csk/->camelCaseKeyword field-key)
-                             (-> {:type (field->gql-type field)}
+                             ;; Raw graphql objects don't have the
+                             ;; namespaced keywords, so make it
+                             ;; conform to the spec'ed equivalents.
+                             (-> {:type (field->gql-type (assoc field
+                                                                ::sp/field-key field-key
+                                                                ::sp/gql-type  gql-type))}
                                  (-assoc-description description))]))
                      (into {}))}
        (-assoc-description description))])
