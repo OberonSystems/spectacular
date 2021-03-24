@@ -122,25 +122,18 @@
   (-> (get-field k ::scalar-key)
       get-scalar))
 
-(defn get-fields
-  [ks]
-  (->> ks
-       (mapv (fn [fk]
-               (let [field  (get-field        fk)
-                     scalar (get-field-scalar fk)]
-                 (merge {::field-key fk}
-                        scalar
-                        field))))
-       seq))
-
 ;;;
 
 (defonce +entities+ (atom {}))
 
+(defn entity?
+  [k]
+  (-exists? +entities+ k))
+
 (defmacro register-entity
   [k field-keys & {::keys [identity-keys optional-keys] :as info}]
   ;; FIXME: Add spec checks for all field keys to be non-empty sequences of
-  ;; namespaced keys to this funciont.
+  ;; namespaced keys.
   (let [field-key?    (set field-keys)
         identity-key? (set identity-keys)
         optional-key? (set optional-keys)
@@ -155,11 +148,11 @@
                 (and optional-keys (not (subset? optional-key? field-key?))) "Optional keys must be a subset of field keys."
                 (-> (intersection identity-key? optional-key?) empty? not)   "Identity and Optional keys cannot intersect.")]
     (when error
-      (throw (ex-info error {:k          k
-                             :field-keys      field-keys
-                             :identity-keys   identity-keys
-                             :optional-keys   optional-keys})))
-    (when-let [unregistered (->> field-keys (remove field?) seq)]
+      (throw (ex-info error {:k             k
+                             :field-keys    field-keys
+                             :identity-keys identity-keys
+                             :optional-keys optional-keys})))
+    (when-let [unregistered (->> field-keys (remove field?) (remove entity?) seq)]
       (throw (ex-info "Cannot register an entity with an unregistered fields."
                       {:k k :unregistered unregistered})))
     `(do
@@ -177,6 +170,20 @@
 (defn get-entity
   ([k]      (-get +entities+ k "Entity"))
   ([k & ks] (-> (get-entity k) (get-in ks))))
+
+(defn -get-entity
+  "Get entity or nil, sometimes we don't want to throw when we don't find a registered entity."
+  [k]
+  (get @+entities+ k))
+
+(defmacro clone-entity
+  [nk k]
+  ;; Validate that k and nk are namespaced keys
+  (when-not (entity? k) (throw (ex-info "Cannot clone an unregistered entity." {:k k :nk nk})))
+  `(do
+     (s/def ~nk (s/get-spec ~k))
+     (-set! +entities+ ~nk (get-entity ~k))
+     ~nk))
 
 (defn get-entity-label
   [k]
@@ -209,11 +216,16 @@
    (let [optional-key? (get-entity k ::optional-key?)
          overrides     (get-entity k ::fields)]
      (->> fields
-          get-fields
-          (map (fn [{::keys [field-key] :as record}]
-                 (merge record
-                        (get overrides field-key)
-                        (when (optional-key? field-key) {::optional? true}))))))))
+          (map (fn [field-key]
+                 (let [entity (-get-entity field-key)
+                       field  (when-not entity (get-field        field-key))
+                       scalar (when-not entity (get-field-scalar field-key))]
+                   (merge {::field-key field-key}
+                          scalar
+                          field
+                          entity
+                          (get overrides field-key)
+                          (when (optional-key? field-key) {::optional? true})))))))))
 
 (defn get-identity-fields
   [k]
