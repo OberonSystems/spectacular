@@ -57,14 +57,14 @@
    & {:keys [force-optional? debug?]}]
   (when debug?
     (println field-key scalar-key gql-type optional?))
-  (let [gql-schema-type (-> (or gql-type scalar-key field-key)
+  (let [required?       (not (or force-optional? optional?))
+        gql-schema-type (-> (or gql-type scalar-key field-key)
                             name
                             csk/->PascalCaseSymbol)]
     (cond
-      list?           `(~'list ~gql-schema-type)
-      force-optional? gql-schema-type
-      optional?       gql-schema-type
-      :else           `(~'non-null ~gql-schema-type))))
+      (and required? list?) `(~'non-null (~'list (~'non-null ~gql-schema-type)))
+      required?             `(~'non-null ~gql-schema-type)
+      :else                 gql-schema-type)))
 
 (defmulti transform-object (fn [object-key {:keys [object-type]}]
                              object-type))
