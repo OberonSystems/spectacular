@@ -15,13 +15,12 @@
           :fields      {:index {:gql-type :int :required? true :description "Zero based index of page."}
                         :size  {:gql-type :int :required? true :description "Size of page requested, records returned may be less than size."}}}})
 
-(defn paged-records
-  [record-type]
-  {(-> (str (name record-type) "-records") keyword)
-   {:object-type :graphql
-    :fields      {:total   {:gql-type :int        :required? true :description "Total number of matched results."}
-                  :records {:gql-type record-type :list? true}
-                  :page    {:gql-type :records-page}}}})
+(defn paged
+  [entity-key]
+  {:object-type :graphql
+   :fields      {:total   {:gql-type :int       :required? true :description "Total number of matched results."}
+                 :records {:gql-type entity-key :list? true :required? true}
+                 :page    {:gql-type :page}}})
 
 ;;;
 

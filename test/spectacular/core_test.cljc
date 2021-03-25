@@ -1,7 +1,8 @@
 (ns spectacular.core-test
   (:require [clojure.test :refer :all]
             [clojure.spec.alpha :as s]
-            [clojure.data :refer [diff]])
+            [clojure.data :refer [diff]]
+            [clojure.pprint :refer [pprint]])
   (:require [spectacular.core    :refer :all :as sp]
             [spectacular.graphql :as gql]
             :reload))
@@ -189,23 +190,34 @@
                    :description "Traditionally a 6 stringed instrument."}])))
 
 (deftest gql-schema-queries
-  (is (= (gql/make-schema {:queries {:fetch-guitars {:args        {:guitar-brand {:type ::guitar-brand}
+  (is (= (gql/make-schema {:objects (merge gql/+page-object+
+                                           {:paged-guitars (gql/paged ::guitar)})
+                           :queries {:fetch-guitars {:args        {:guitar-brand {:type ::guitar-brand}
                                                                    :wildcard     {:type :string
                                                                                   :description "Wild card search for guitar."}
                                                                    :page         {:type ::gql/page}}
-                                                     :type        ::paged-guitars
+                                                     :type        :paged-guitars
                                                      :resolve     'fetch-guitars}
                                      :fetch-guitar  {:args        {:token {:type ::guitar-token :required? true}}
                                                      :type        ::guitar
                                                      :description "Fetches a single guitar"
                                                      :resolve     'fetch-guitar}}})
-         {:queries {:fetchGuitars {:type 'PagedGuitars
-                                   :args {:guitarBrand {:type 'GuitarBrand :description "A small selection of Guitar Brands"}
-                                          :wildcard    {:type 'String :description "Wild card search for guitar."}
-                                          :page        {:type 'Page}}
+         {:objects {:Page         {:fields {:index {:type '(non-null Int) :description "Zero based index of page."}
+                                            :size  {:type '(non-null Int)
+                                                    :description "Size of page requested, records returned may be less than size."}}}
+                    :PagedGuitars {:fields {:total {:type '(non-null Int)
+                                                    :description "Total number of matched results."}
+                                            :records {:type '(non-null (list (non-null Guitar)))}
+                                            :page {:type 'Page}}}}
+          :queries {:fetchGuitars {:type 'PagedGuitars
+                                   :args {:guitarBrand
+                                          {:type 'GuitarBrand
+                                           :description "A small selection of Guitar Brands"}
+                                          :wildcard
+                                          {:type 'String :description "Wild card search for guitar."}
+                                          :page {:type 'Page}}
                                    :resolve 'fetch-guitars}
-                    :fetchGuitar
-                    {:type 'Guitar
-                     :args {:token {:type '(non-null GuitarToken)}}
-                     :resolve 'fetch-guitar
-                     :description "Fetches a single guitar"}}})))
+                    :fetchGuitar {:type 'Guitar
+                                  :args {:token {:type '(non-null GuitarToken)}}
+                                  :resolve 'fetch-guitar
+                                  :description "Fetches a single guitar"}}})))
