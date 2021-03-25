@@ -231,12 +231,13 @@
 ;;;
 
 (defn transform-mutation
-  [{:keys [mutation-key mutation-type args description resolve] :as record}]
-  (when-not mutation-key
-    (throw (ex-info "Mutation must have a mutation-type" {:mutation record})))
+  [mutation-key {:keys [args type description resolve] :as record}]
+  (when-not type
+    (throw (ex-info "Mutation must have a type" {:mutation-key mutation-key
+                                                 :record       record})))
   [(csk/->camelCaseKeyword mutation-key)
-   (cond-> {:type (transform-return-type mutation-type)}
-     args        (assoc :args        (->> args (map transform-arg) (into {})))
+   (cond-> {:type (transform-return-type type)}
+     args        (assoc :args        (->> args (map -transform-arg) (into {})))
      resolve     (assoc :resolve     resolve)
      description (assoc :description description))])
 
@@ -254,6 +255,10 @@
   [[arg1 arg2]]
   (transform-query arg1 arg2))
 
+(defn -transform-mutation
+  [[arg1 arg2]]
+  (transform-mutation arg1 arg2))
+
 (defn make-schema
   [{:keys [enums objects input-objects queries mutations]}]
   (cond-> nil
@@ -261,4 +266,4 @@
     objects       (assoc :objects       (->> (mapv -transform-object       objects)       (into {})))
     input-objects (assoc :input-objects (->> (mapv -transform-input-object input-objects) (into {})))
     queries       (assoc :queries       (->> (mapv -transform-query        queries)       (into {})))
-    mutations     (assoc :mutations     (->> (mapv transform-mutation      mutations)     (into {})))))
+    mutations     (assoc :mutations     (->> (mapv -transform-mutation     mutations)     (into {})))))

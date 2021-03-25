@@ -221,3 +221,25 @@
                                   :args {:token {:type '(non-null GuitarToken)}}
                                   :resolve 'fetch-guitar
                                   :description "Fetches a single guitar"}}})))
+
+(deftest gql-schema-mutations
+  (is (= (gql/make-schema {:mutations {:add-guitar    {:args    {:record {:type ::guitar-in :required? true}}
+                                                       :type    ::guitar
+                                                       :resolve 'add-guitar}
+                                       :modify-guitar {:args    {:token   {:type ::guitar-token-in   :required? true}
+                                                                 :content {:type ::guitar-content-in :required? true}}
+                                                       :type    ::guitar
+                                                       :resolve 'modify-guitar}
+                                       :remove-guitar {:args    {:token {:type ::guitar-token-in   :required? true}}
+                                                       :type    :boolean
+                                                       :resolve 'remove-guitar}}})
+         {:mutations {:addGuitar    {:type    'Guitar
+                                     :args    {:record {:type '(non-null GuitarIn)}}
+                                     :resolve 'add-guitar}
+                      :modifyGuitar {:type    'Guitar
+                                     :args     {:token {:type '(non-null GuitarTokenIn)}
+                                                :content {:type '(non-null GuitarContentIn)}}
+                                     :resolve  'modify-guitar},
+                      :removeGuitar {:type    'Boolean
+                                     :args    {:token {:type '(non-null GuitarTokenIn)}}
+                                     :resolve 'remove-guitar}}})))
