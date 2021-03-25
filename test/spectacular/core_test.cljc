@@ -168,12 +168,12 @@
                                       :pickup3     {:type 'Pickup3}}
                              :description "Traditionally a 6 stringed instrument."}
            :GuitarIn {:fields {:guitarUuid  {:type '(non-null WeirdoUuid)}
-                       :guitarBrand {:type '(non-null GuitarBrand)}
-                       :name        {:type '(non-null String)}
-                       :age         {:type 'Integer}
-                       :pickup1     {:type '(non-null Pickup1)}
-                       :pickup2     {:type 'Pickup2}
-                       :pickup3     {:type 'Pickup3}}
+                               :guitarBrand {:type '(non-null GuitarBrand)}
+                               :name        {:type '(non-null String)}
+                               :age         {:type 'Integer}
+                               :pickup1     {:type '(non-null Pickup1)}
+                               :pickup2     {:type 'Pickup2}
+                               :pickup3     {:type 'Pickup3}}
                       :description "Traditionally a 6 stringed instrument."}}})))
 
 (deftest gql-transform-args
