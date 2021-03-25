@@ -47,9 +47,7 @@
                 ::sp/description "Globally Unique ID."
                 ::sp/gql-type    :weirdo-uuid)
 
-(register-field ::name           ::string
-                ::sp/label       "Guitar"
-                ::sp/description "Usually a six stringed instrument.")
+(register-field ::name           ::string)
 
 (register-field ::guitar-brand ::guitar-brand
                 ::sp/label     "Guitar Brand")
@@ -72,6 +70,12 @@
                  ::sp/required-keys [::guitar-brand ::name ::pickup-1]
                  ::sp/fields        {::name #::sp{:label       "Guitar Name"
                                                   :description "BB King called his 'Lucille'."}})
+
+(register-entity ::player           [::name ::age]
+                 ::sp/identity-keys [::name]
+                 ::sp/required-keys [::age]
+                 ::sp/fields        {::name {::sp/label       "Player Name"
+                                             ::sp/description "Usually something cool."}})
 
 (deftest test-scalars
   (is (= (get-scalar-description ::string) "Non Blank String"))
@@ -126,55 +130,15 @@
             :description "A Description"}
            :JustForGraphql2 {:values [:GRAPH_1 :GRAPH_2 :GRAPH_3]}}})))
 
-(deftest gql-schema-objects
-  (is (= (gql/make-schema {:objects {:guitar-token {:object-type :entity-token :entity-key ::guitar}
-                                     :guitar       {:object-type :entity       :entity-key ::guitar}
-                                     ;;
-                                     :pick {:object-type :graphql
-                                            :fields      {:colour {:gql-type :string :required? true}
-                                                          :brand  {:gql-type :string :required? true :description "Brand of Pick"}}
-                                            :description "Some like em thick and others like em thin."}}})
-         {:objects {:GuitarToken {:fields
-                                  {:guitarUuid
-                                   {:type '(non-null WeirdoUuid)
-                                    :description "Globally Unique ID."}}}
-                    :Guitar      {:fields
-                                  {:guitarUuid  {:type 'WeirdoUuid :description "Globally Unique ID."}
-                                   :guitarBrand {:type 'GuitarBrand
-                                                 :description "A small selection of Guitar Brands"}
-                                   :name {:type 'String :description "BB King called his 'Lucille'."}
-                                   :age  {:type 'Integer :description "Age in years."}
-                                   :pickup1 {:type 'Pickup1}
-                                   :pickup2 {:type 'Pickup2}
-                                   :pickup3 {:type 'Pickup3}}
-                                  :description "Traditionally a 6 stringed instrument."}
-                    :Pick        {:fields
-                                  {:colour {:type '(non-null String)}
-                                   :brand  {:type '(non-null String) :description "Brand of Pick"}}
-                                  :description "Some like em thick and others like em thin."}}})))
-
-(deftest gql-schema-input-objects
-  (is (= (gql/make-schema {:input-objects {:guitar-token-in   {:object-type :entity-token   :entity-key ::guitar}
-                                           :guitar-content-in {:object-type :entity-content :entity-key ::guitar}
-                                           :guitar-in         {:object-type :entity         :entity-key ::guitar}}})
-         {:input-objects
-          {:GuitarTokenIn {:fields {:guitarUuid {:type '(non-null WeirdoUuid)}}
-                           :description "Traditionally a 6 stringed instrument."}
-           :GuitarContentIn {:fields {:guitarBrand {:type '(non-null GuitarBrand)}
-                                      :name        {:type '(non-null String)}
-                                      :age         {:type 'Integer}
-                                      :pickup1     {:type '(non-null Pickup1)}
-                                      :pickup2     {:type 'Pickup2}
-                                      :pickup3     {:type 'Pickup3}}
-                             :description "Traditionally a 6 stringed instrument."}
-           :GuitarIn {:fields {:guitarUuid  {:type '(non-null WeirdoUuid)}
-                               :guitarBrand {:type '(non-null GuitarBrand)}
-                               :name        {:type '(non-null String)}
-                               :age         {:type 'Integer}
-                               :pickup1     {:type '(non-null Pickup1)}
-                               :pickup2     {:type 'Pickup2}
-                               :pickup3     {:type 'Pickup3}}
-                      :description "Traditionally a 6 stringed instrument."}}})))
+(deftest gql-transform-fields
+  (is (= (gql/transform-field  {:field-key :players
+                                :type      :player
+                                :list?     true
+                                :required? true
+                                :resolve   'get-guitar-players})
+         [:players
+          {:type '(non-null (list (non-null Player)))
+           :resolve 'get-guitar-players}])))
 
 (deftest gql-transform-args
   (is (= (gql/transform-arg :wildcard {:type        :string
@@ -188,6 +152,77 @@
   (is (= (gql/transform-arg ::guitar {:type ::guitar :required? true})
          [:guitar {:type '(non-null Guitar)
                    :description "Traditionally a 6 stringed instrument."}])))
+
+(deftest gql-schema-objects
+  (is (= (gql/make-schema {:objects {:guitar-token {:object-type :entity-token :entity-key ::guitar}
+                                     :guitar       {:object-type :entity       :entity-key ::guitar}
+                                     ;;
+                                     :pick {:object-type :graphql
+                                            :fields      {:colour {:type :string :required? true}
+                                                          :brand  {:type :string :required? true :description "Brand of Pick"}}
+                                            :description "Some like em thick and others like em thin."}}})
+         {:objects {:GuitarToken {:fields {:guitarUuid
+                                           {:type '(non-null WeirdoUuid)
+                                            :description "Globally Unique ID."}}}
+                    :Guitar      {:fields
+                                  {:guitarUuid  {:type 'WeirdoUuid :description "Globally Unique ID."}
+                                   :guitarBrand {:type 'GuitarBrand
+                                                 :description "A small selection of Guitar Brands"}
+                                   :name {:type 'String :description "BB King called his 'Lucille'."}
+                                   :age  {:type 'Integer :description "Age in years."}
+                                   :pickup1 {:type 'Pickup1}
+                                   :pickup2 {:type 'Pickup2}
+                                   :pickup3 {:type 'Pickup3}}
+                                  :description "Traditionally a 6 stringed instrument."}
+                    :Pick        {:fields
+                                  {:colour {:type '(non-null String)}
+                                   :brand  {:type '(non-null String) :description "Brand of Pick"}}
+                                  :description "Some like em thick and others like em thin."}}}))
+  ;;
+  (is (= (gql/make-schema {:objects {:guitar {:object-type :entity
+                                              :entity-key  ::guitar
+                                              :fields      {:players {:type      ::player
+                                                                      :required? true
+                                                                      :list?     true
+                                                                      :resolve   'fetch-guitar-players}}}}})
+         {:objects {:Guitar {:fields {:guitarUuid  {:type 'WeirdoUuid  :description "Globally Unique ID."}
+                                      :guitarBrand {:type 'GuitarBrand :description "A small selection of Guitar Brands"}
+                                      :name        {:type 'String  :description "BB King called his 'Lucille'."}
+                                      :age         {:type 'Integer :description "Age in years."}
+                                      :pickup1     {:type 'Pickup1}
+                                      :pickup2     {:type 'Pickup2}
+                                      :pickup3     {:type 'Pickup3}
+                                      :players     {:type '(list (non-null Player)) :resolve 'fetch-guitar-players}}
+                             :description "Traditionally a 6 stringed instrument."}}})))
+
+(deftest gql-schema-input-objects
+  (is (= (gql/make-schema {:input-objects {:guitar-token-in {:object-type :entity-token :entity-key ::guitar}}})
+         {:input-objects
+          {:GuitarTokenIn {:fields {:guitarUuid {:type        '(non-null WeirdoUuid)
+                                                 :description "Globally Unique ID."}}
+                           :description "Traditionally a 6 stringed instrument."}}}))
+
+  (is (= (gql/make-schema {:input-objects {:guitar-content-in {:object-type :entity-content :entity-key ::guitar}}})
+         {:input-objects {:GuitarContentIn
+                          {:fields {:guitarBrand {:type '(non-null GuitarBrand)
+                                                  :description "A small selection of Guitar Brands"}
+                                    :name        {:type '(non-null String)
+                                                  :description "BB King called his 'Lucille'."}
+                                    :age         {:type 'Integer :description "Age in years."}
+                                    :pickup1     {:type '(non-null Pickup1)}
+                                    :pickup2     {:type 'Pickup2}
+                                    :pickup3     {:type 'Pickup3}}
+                           :description "Traditionally a 6 stringed instrument."}}}))
+
+  (is (= (gql/make-schema {:input-objects {:guitar-in {:object-type :entity :entity-key ::guitar}}})
+         {:input-objects {:GuitarIn {:fields {:guitarUuid  {:type '(non-null WeirdoUuid)  :description "Globally Unique ID."}
+                                              :guitarBrand {:type '(non-null GuitarBrand) :description "A small selection of Guitar Brands"}
+                                              :name        {:type '(non-null String)      :description "BB King called his 'Lucille'."}
+                                              :age         {:type 'Integer                :description "Age in years."}
+                                              :pickup1     {:type '(non-null Pickup1)}
+                                              :pickup2     {:type 'Pickup2}
+                                              :pickup3     {:type 'Pickup3}}
+                                     :description "Traditionally a 6 stringed instrument."}}})))
 
 (deftest gql-schema-queries
   (is (= (gql/make-schema {:objects (merge gql/+page-object+
@@ -203,19 +238,14 @@
                                                      :description "Fetches a single guitar"
                                                      :resolve     'fetch-guitar}}})
          {:objects {:Page         {:fields {:index {:type '(non-null Int) :description "Zero based index of page."}
-                                            :size  {:type '(non-null Int)
-                                                    :description "Size of page requested, records returned may be less than size."}}}
-                    :PagedGuitars {:fields {:total {:type '(non-null Int)
-                                                    :description "Total number of matched results."}
+                                            :size  {:type '(non-null Int) :description "Max number of records to include in each page."}}}
+                    :PagedGuitars {:fields {:total {:type '(non-null Int) :description "Total number of matched results."}
                                             :records {:type '(non-null (list (non-null Guitar)))}
                                             :page {:type 'Page}}}}
           :queries {:fetchGuitars {:type 'PagedGuitars
-                                   :args {:guitarBrand
-                                          {:type 'GuitarBrand
-                                           :description "A small selection of Guitar Brands"}
-                                          :wildcard
-                                          {:type 'String :description "Wild card search for guitar."}
-                                          :page {:type 'Page}}
+                                   :args {:guitarBrand {:type 'GuitarBrand :description "A small selection of Guitar Brands"}
+                                          :wildcard    {:type 'String :description "Wild card search for guitar."}
+                                          :page        {:type 'Page}}
                                    :resolve 'fetch-guitars}
                     :fetchGuitar {:type 'Guitar
                                   :args {:token {:type '(non-null GuitarToken)}}
@@ -239,7 +269,7 @@
                       :modifyGuitar {:type    'Guitar
                                      :args     {:token {:type '(non-null GuitarTokenIn)}
                                                 :content {:type '(non-null GuitarContentIn)}}
-                                     :resolve  'modify-guitar},
+                                     :resolve  'modify-guitar}
                       :removeGuitar {:type    'Boolean
                                      :args    {:token {:type '(non-null GuitarTokenIn)}}
                                      :resolve 'remove-guitar}}})))

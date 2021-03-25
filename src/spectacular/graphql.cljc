@@ -6,21 +6,28 @@
             [camel-snake-kebab.core :as csk]
             [camel-snake-kebab.extras :as cske]
             ;;
-            [spectacular.core :refer :all :as sp]))
+            [spectacular.core :refer :all :as sp]
+            [spectacular.utils :refer [map->nsmap]]))
+
+;;;
+
+(defn m->sp
+  [m]
+  (map->nsmap m 'spectacular.core))
 
 ;;;
 
 (def +page-object+
   {:page {:object-type :graphql
-          :fields      {:index {:gql-type :int :required? true :description "Zero based index of page."}
-                        :size  {:gql-type :int :required? true :description "Size of page requested, records returned may be less than size."}}}})
+          :fields      {:index {:type :int :required? true :description "Zero based index of page."}
+                        :size  {:type :int :required? true :description "Max number of records to include in each page."}}}})
 
 (defn paged
   [entity-key]
   {:object-type :graphql
-   :fields      {:total   {:gql-type :int       :required? true :description "Total number of matched results."}
-                 :records {:gql-type entity-key :list? true :required? true}
-                 :page    {:gql-type :page}}})
+   :fields      {:total   {:type :int       :required? true :description "Total number of matched results."}
+                 :records {:type entity-key :list? true :required? true}
+                 :page    {:type :page}}})
 
 ;;;
 
@@ -51,21 +58,51 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(defn field->gql-type
-  [{::sp/keys [field-key scalar-key gql-type required? list?] :as record}
+(defn gql-fields->fields
+  [fields]
+  ;; Graphql fields come in as a map and we need to assoc the key of
+  ;; the map into the values to make it conform to the shape of a
+  ;; spectacular/field.
+  (->> fields
+       (map (fn [[k v]]
+              (assoc v :field-key k)))))
+
+(defn transform-field
+  [{sp-field-key   ::sp/field-key
+    sp-gql-type    ::sp/gql-type
+    sp-scalar-key  ::sp/scalar-key
+    sp-label       ::sp/label
+    sp-description ::sp/description
+    sp-required?   ::sp/required?
+    :keys [field-key type label description resolve required? list?]
+    :as record}
    & {:keys [optional? debug?] :as options}]
-  (when debug? (println field-key record options))
-  (let [required?       (if (contains? options :optional?)
+  (when debug? (println record))
+  (when-not (or field-key sp-field-key)
+    (throw (ex-info "Must have a Field key" record)))
+  ;;
+  (let [label (or label       sp-label)
+        desc  (or description sp-description)
+        ;;
+        required?       (if (contains? options :optional?)
                           (not optional?)
-                          required?)
-        gql-schema-type (-> (or gql-type scalar-key field-key)
+                          (or required? sp-required?))
+        gql-schema-type (-> (or type sp-gql-type
+                                sp-scalar-key
+                                field-key sp-field-key)
                             name
                             csk/->PascalCaseSymbol)]
-    (cond
-      (and required? list?) `(~'non-null (~'list (~'non-null ~gql-schema-type)))
-      required?             `(~'non-null ~gql-schema-type)
-      list?                 `(~'list ~gql-schema-type)
-      :else                 gql-schema-type)))
+    [(csk/->camelCaseKeyword (or field-key sp-field-key))
+     (cond-> {:type (cond
+                      (and required? list?) `(~'non-null (~'list (~'non-null ~gql-schema-type)))
+                      required?             `(~'non-null ~gql-schema-type)
+                      list?                 `(~'list (~'non-null ~gql-schema-type))
+                      :else                 gql-schema-type)}
+
+       desc    (assoc :description desc)
+       resolve (assoc :resolve     resolve))]))
+
+;;; --------------------------------------------------------------------------------
 
 (defmulti transform-object (fn [object-key {:keys [object-type]}]
                              object-type))
@@ -73,23 +110,18 @@
 (defmethod transform-object :entity-token
   [object-key {:keys [entity-key] :as record}]
   (if-let [fields (->> (get-identity-fields entity-key)
-                       (map (fn [{::sp/keys [field-key description] :as field}]
-                              [(csk/->camelCaseKeyword field-key)
-                               (-> {:type (field->gql-type field)}
-                                   (-assoc-description description))]))
+                       (map transform-field)
                        (into {}))]
     [(csk/->PascalCaseKeyword object-key) {:fields fields}]
     (throw (ex-info "An Entity must have identity fields in order for it to be transformed it to an Entity Token."
                     {:object-key object-key :record record}))))
 
 (defmethod transform-object :entity
-  [object-key {:keys [entity-key] :as record}]
+  [object-key {:keys [entity-key fields] :as record}]
   [(csk/->PascalCaseKeyword object-key)
-   (-> {:fields (->> (get-entity-fields entity-key)
-                     (map (fn [{::sp/keys [field-key description] :as field}]
-                            [(csk/->camelCaseKeyword field-key)
-                             (-> {:type (field->gql-type field :optional? true)}
-                                 (-assoc-description description))]))
+   (-> {:fields (->> (concat (get-entity-fields  entity-key)
+                             (gql-fields->fields fields))
+                     (map #(transform-field % :optional? true))
                      (into {}))}
        (-assoc-description (get-entity-description entity-key)))])
 
@@ -97,17 +129,8 @@
   [object-key {:keys [fields description] :as record}]
   [(csk/->PascalCaseKeyword object-key)
    (-> {:fields (->> fields
-                     (map (fn [[field-key {:keys [gql-type required? list? description] :as field}]]
-                            [(csk/->camelCaseKeyword field-key)
-                             ;; Raw graphql objects don't have the
-                             ;; namespaced keywords, so make it
-                             ;; conform to the spec'ed equivalents.
-                             (-> {:type (field->gql-type (assoc field
-                                                                ::sp/field-key field-key
-                                                                ::sp/gql-type  gql-type
-                                                                ::sp/required? required?
-                                                                ::sp/list?     list?))}
-                                 (-assoc-description description))]))
+                     gql-fields->fields
+                     (map transform-field)
                      (into {}))}
        (-assoc-description description))])
 
@@ -120,13 +143,11 @@
   [object-key {:keys [entity-key] :as record}]
   (if-let [fields (some->> entity-key
                            get-identity-fields
-                           (map (fn [{::sp/keys [field-key] :as field}]
-                                  [(csk/->camelCaseKeyword field-key)
-                                   {:type (field->gql-type field)}]))
+                           (map transform-field)
                            (into {})) ]
     [(csk/->PascalCaseKeyword object-key)
      (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))]
-    (throw (ex-info "An Entity must have Identity Fields in order for it to be transformed it to an Input Entity Token."
+    (throw (ex-info "An Entity must have Identity Fields in order for it to be transformed it to an Token Input Object."
                     {:object-key object-key
                      :record     record}))))
 
@@ -134,13 +155,11 @@
   [object-key {:keys [entity-key] :as record}]
   (if-let [fields  (some->> entity-key
                             get-entity-fields
-                            (map (fn [{::sp/keys [field-key] :as field}]
-                                   [(csk/->camelCaseKeyword field-key)
-                                    {:type (field->gql-type field)}]))
+                            (map transform-field)
                             (into {}))]
     [(csk/->PascalCaseKeyword object-key)
      (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))]
-    (throw (ex-info "An Entity must have Fields in order for it to be transformed it to an Input Entity."
+    (throw (ex-info "An Entity must have Fields in order for it to be transformed it to an Entity Input Object."
                     {:object-key object-key
                      :record     record}))))
 
@@ -148,13 +167,11 @@
   [object-key {:keys [entity-key] :as record}]
   (if-let [fields  (some->> entity-key
                             get-content-fields
-                            (map (fn [{::sp/keys [field-key] :as field}]
-                                   [(csk/->camelCaseKeyword field-key)
-                                    {:type (field->gql-type field)}]))
+                            (map transform-field)
                             (into {}))]
     [(csk/->PascalCaseKeyword object-key)
      (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))]
-    (throw (ex-info "An Entity must have Content Fields in order for it to be transformed it to an Input Entity."
+    (throw (ex-info "An Entity must have Content Fields in order for it to be transformed it to a Content Input Object."
                     {:object-key object-key
                      :record     record}))))
 
