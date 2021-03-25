@@ -53,17 +53,19 @@
 ;;; --------------------------------------------------------------------------------
 
 (defn field->gql-type
-  [{::sp/keys [field-key scalar-key gql-type optional? list?]}
-   & {:keys [force-optional? debug?]}]
-  (when debug?
-    (println field-key scalar-key gql-type optional?))
-  (let [required?       (not (or force-optional? optional?))
+  [{::sp/keys [field-key scalar-key gql-type required? list?] :as record}
+   & {:keys [optional? debug?] :as options}]
+  (when debug? (println field-key record options))
+  (let [required?       (if (contains? options :optional?)
+                          (not optional?)
+                          required?)
         gql-schema-type (-> (or gql-type scalar-key field-key)
                             name
                             csk/->PascalCaseSymbol)]
     (cond
       (and required? list?) `(~'non-null (~'list (~'non-null ~gql-schema-type)))
       required?             `(~'non-null ~gql-schema-type)
+      list?                 `(~'list ~gql-schema-type)
       :else                 gql-schema-type)))
 
 (defmulti transform-object (fn [object-key {:keys [object-type]}]
@@ -87,7 +89,7 @@
    (-> {:fields (->> (get-entity-fields entity-key)
                      (map (fn [{::sp/keys [field-key description] :as field}]
                             [(csk/->camelCaseKeyword field-key)
-                             (-> {:type (field->gql-type field :force-optional? true)}
+                             (-> {:type (field->gql-type field :optional? true)}
                                  (-assoc-description description))]))
                      (into {}))}
        (-assoc-description (get-entity-description entity-key)))])
@@ -96,14 +98,15 @@
   [object-key {:keys [fields description] :as record}]
   [(csk/->PascalCaseKeyword object-key)
    (-> {:fields (->> fields
-                     (map (fn [[field-key {:keys [gql-type description] :as field}]]
+                     (map (fn [[field-key {:keys [gql-type required? description] :as field}]]
                             [(csk/->camelCaseKeyword field-key)
                              ;; Raw graphql objects don't have the
                              ;; namespaced keywords, so make it
                              ;; conform to the spec'ed equivalents.
                              (-> {:type (field->gql-type (assoc field
                                                                 ::sp/field-key field-key
-                                                                ::sp/gql-type  gql-type))}
+                                                                ::sp/gql-type  gql-type
+                                                                ::sp/required? required?))}
                                  (-assoc-description description))]))
                      (into {}))}
        (-assoc-description description))])

@@ -68,7 +68,7 @@
                  ::sp/description "Traditionally a 6 stringed instrument."
                  ;;
                  ::sp/identity-keys [::guitar-uuid]
-                 ::sp/optional-keys [::age ::pickup-2 ::pickup-3]
+                 ::sp/required-keys [::guitar-brand ::name ::pickup-1]
                  ::sp/fields        {::name #::sp{:label       "Guitar Name"
                                                   :description "BB King called his 'Lucille'."}})
 
@@ -98,8 +98,6 @@
                           ::guitar-brand ::gibson
                           ::name         "Lucille"
                           ::age          10
-                          ::pickup-1     {::pickup-brand    ::fender
-                                          ::pickup-position 1}
                           ::pickup-2     {::pickup-brand    ::lolar}})
       not
       is))
@@ -132,8 +130,8 @@
                                      :guitar       {:object-type :entity       :entity-key ::guitar}
                                      ;;
                                      :pick {:object-type :graphql
-                                            :fields      {:colour {:gql-type :string}
-                                                          :brand  {:gql-type :string :description "Brand of Pick"}}
+                                            :fields      {:colour {:gql-type :string :required? true}
+                                                          :brand  {:gql-type :string :required? true :description "Brand of Pick"}}
                                             :description "Some like em thick and others like em thin."}}})
          {:objects {:GuitarToken {:fields
                                   {:guitarUuid

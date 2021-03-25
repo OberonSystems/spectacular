@@ -131,27 +131,29 @@
   (-exists? +entities+ k))
 
 (defmacro register-entity
-  [k field-keys & {::keys [identity-keys optional-keys] :as info}]
+  [k field-keys & {::keys [identity-keys required-keys] :as info}]
   ;; FIXME: Add spec checks for all field keys to be non-empty sequences of
   ;; namespaced keys.
   (let [field-key?    (set field-keys)
         identity-key? (set identity-keys)
-        optional-key? (set optional-keys)
+        required-key? (set (concat identity-keys required-keys))
         ;;
-        required-keys (some->> field-keys (remove optional-key?) seq vec)
         content-keys  (some->> field-keys (remove identity-key?) seq vec)
-        ;;
         content-key?  (set content-keys)
+        ;;
+        required-keys (some->> field-keys (filter required-key?) seq vec)
+        optional-keys (some->> field-keys (remove required-key?) seq vec)
         ;;
         error (cond
                 (and identity-keys (not (subset? identity-key? field-key?))) "Identity keys must be a subset of field keys."
-                (and optional-keys (not (subset? optional-key? field-key?))) "Optional keys must be a subset of field keys."
-                (-> (intersection identity-key? optional-key?) empty? not)   "Identity and Optional keys cannot intersect.")]
+                (and required-keys (not (subset? required-key? field-key?))) "Required keys must be a subset of field keys."
+                (and (and identity-keys required-keys)
+                     (not (subset? identity-keys required-key?))) "Identity keys must be a subset of Required keys.")]
     (when error
       (throw (ex-info error {:k             k
                              :field-keys    field-keys
                              :identity-keys identity-keys
-                             :optional-keys optional-keys})))
+                             :required-keys required-keys})))
     (when-let [unregistered (->> field-keys (remove field?) (remove entity?) seq)]
       (throw (ex-info "Cannot register an entity with an unregistered fields."
                       {:k k :unregistered unregistered})))
@@ -162,10 +164,10 @@
                                    ::field-keys   ~field-keys
                                    ::content-keys ~content-keys
                                    ;;
-                                   ::field-key?     ~field-key?
-                                   ::identity-key?  ~identity-key?
-                                   ::optional-key?  ~optional-key?
-                                   ::content-key?   ~content-key?)))))
+                                   ::field-key?    ~field-key?
+                                   ::identity-key? ~identity-key?
+                                   ::required-key? ~required-key?
+                                   ::content-key?  ~content-key?)))))
 
 (defn get-entity
   ([k]      (-get +entities+ k "Entity"))
@@ -201,9 +203,9 @@
   [k]
   (get-entity k ::identity-keys))
 
-(defn get-optional-keys
+(defn get-required-keys
   [k]
-  (get-entity k ::optional-keys))
+  (get-entity k ::required-keys))
 
 (defn get-content-keys
   [k]
@@ -213,7 +215,7 @@
   ([k]
    (get-entity-fields k (get-entity k ::field-keys)))
   ([k fields]
-   (let [optional-key? (get-entity k ::optional-key?)
+   (let [required-key? (get-entity k ::required-key?)
          overrides     (get-entity k ::fields)]
      (->> fields
           (map (fn [field-key]
@@ -225,7 +227,7 @@
                           field
                           entity
                           (get overrides field-key)
-                          (when (optional-key? field-key) {::optional? true})))))))))
+                          (when (required-key? field-key) {::required? true})))))))))
 
 (defn get-identity-fields
   [k]
