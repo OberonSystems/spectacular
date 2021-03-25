@@ -98,7 +98,7 @@
   [object-key {:keys [fields description] :as record}]
   [(csk/->PascalCaseKeyword object-key)
    (-> {:fields (->> fields
-                     (map (fn [[field-key {:keys [gql-type required? description] :as field}]]
+                     (map (fn [[field-key {:keys [gql-type required? list? description] :as field}]]
                             [(csk/->camelCaseKeyword field-key)
                              ;; Raw graphql objects don't have the
                              ;; namespaced keywords, so make it
@@ -106,7 +106,8 @@
                              (-> {:type (field->gql-type (assoc field
                                                                 ::sp/field-key field-key
                                                                 ::sp/gql-type  gql-type
-                                                                ::sp/required? required?))}
+                                                                ::sp/required? required?
+                                                                ::sp/list?     list?))}
                                  (-assoc-description description))]))
                      (into {}))}
        (-assoc-description description))])
