@@ -131,25 +131,31 @@
            :JustForGraphql2 {:values [:GRAPH_1 :GRAPH_2 :GRAPH_3]}}})))
 
 (deftest gql-transform-fields
-  (is (= (gql/transform-field  {:field-key :players
-                                :type      :player
-                                :list?     true
-                                :required? true
-                                :resolve   'get-guitar-players})
+  (is (= (-> {:field-key :players
+              :type      :player
+              :list?     true
+              :required? true
+              :resolve   'get-guitar-players}
+             gql/gql-field->field
+             gql/transform-field)
          [:players
           {:type '(non-null (list (non-null Player)))
-           :resolve 'get-guitar-players}])))
+           :resolve 'get-guitar-players}]))
 
-(deftest gql-transform-args
-  (is (= (gql/transform-arg :wildcard {:type        :string
-                                       :description "Use * for wildcard"})
+  (is (= (gql/transform-field {:field-key   :wildcard
+                               :type        :string
+                               :description "Use * for wildcard"})
          [:wildcard {:type 'String :description "Use * for wildcard"}]))
 
-  (is (= (gql/transform-arg ::guitar-brand {:type ::guitar-brand})
+  (is (= (-> {:field-key ::guitar-brand}
+             gql/gql-field->field
+             gql/transform-field)
          [:guitarBrand {:type 'GuitarBrand
                         :description "A small selection of Guitar Brands"}]))
 
-  (is (= (gql/transform-arg ::guitar {:type ::guitar :required? true})
+  (is (= (-> {:field-key ::guitar :required? true}
+             gql/gql-field->field
+             gql/transform-field)
          [:guitar {:type '(non-null Guitar)
                    :description "Traditionally a 6 stringed instrument."}])))
 
@@ -238,9 +244,9 @@
                                                      :resolve     'fetch-guitar}}})
          {:objects {:Page         {:fields {:index {:type '(non-null Int) :description "Zero based index of page."}
                                             :size  {:type '(non-null Int) :description "Max number of records to include in each page."}}}
-                    :PagedGuitars {:fields {:total {:type '(non-null Int) :description "Total number of matched results."}
+                    :PagedGuitars {:fields {:total   {:type '(non-null Int) :description "Total number of matched results."}
                                             :records {:type '(non-null (list (non-null Guitar)))}
-                                            :page {:type 'Page}}}}
+                                            :page    {:type 'Page}}}}
           :queries {:fetchGuitars {:type 'PagedGuitars
                                    :args {:guitarBrand {:type 'GuitarBrand :description "A small selection of Guitar Brands"}
                                           :wildcard    {:type 'String :description "Wild card search for guitar."}
