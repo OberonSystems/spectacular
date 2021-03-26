@@ -228,8 +228,7 @@
   (is (= (gql/make-schema {:objects (merge gql/+page-object+
                                            {:paged-guitars (gql/paged ::guitar)})
                            :queries {:fetch-guitars {:args        {:guitar-brand {:type ::guitar-brand}
-                                                                   :wildcard     {:type :string
-                                                                                  :description "Wild card search for guitar."}
+                                                                   :wildcard     {:type :string :description "Wild card search for guitar."}
                                                                    :page         {:type ::gql/page}}
                                                      :type        :paged-guitars
                                                      :resolve     'fetch-guitars}

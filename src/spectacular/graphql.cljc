@@ -67,6 +67,13 @@
        (map (fn [[k v]]
               (assoc v :field-key k)))))
 
+(defn maybe-merge-field-or-scalar
+  [{:keys [type] :as record}]
+  (cond
+    (field?  type) (merge (get-field-and-scalar type) record)
+    (scalar? type) (merge (get-scalar           type) record)
+    :else record))
+
 (defn transform-field
   [{sp-field-key   ::sp/field-key
     sp-gql-type    ::sp/gql-type
@@ -101,6 +108,15 @@
 
        desc    (assoc :description desc)
        resolve (assoc :resolve     resolve))]))
+
+(defn transform-return-type
+  [k]
+  (let [k (or (-> (or (and (entity? k) (get-entity k))
+                      (and (field?  k) (get-field  k))
+                      (and (scalar? k) (get-scalar k)))
+                  ::sp/gql-type)
+              k)]
+    (csk/->PascalCaseSymbol k)))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -177,63 +193,6 @@
 
 ;;;
 
-(defn maybe-non-null
-  [sym non-null?]
-  (let [sym (csk/->PascalCaseSymbol sym)]
-    (if non-null?
-      `(~'non-null ~sym)
-      sym)))
-
-(defmulti transform-arg (fn [arg-key {:keys [type] :as record}]
-                          (cond
-                            (scalar? type) :scalar
-                            (field?  type) :field
-                            (entity? type) :entity
-                            ;;
-                            (keyword? type) :graphql
-                            :else (throw (ex-info "Unknown arg type" {:arg-key arg-key
-                                                                      :type    type})))))
-
-(defmethod transform-arg :scalar
-  [arg-key {:keys [type required? description]}]
-  (let [{::sp/keys [gql-type] :as record} (get-scalar type)]
-    [(csk/->camelCaseKeyword arg-key)
-     (-> {:type (maybe-non-null (or gql-type arg-key) required?)}
-         (-assoc-description (or description (::sp/description record))))]))
-
-(defmethod transform-arg :field
-  [arg-key {:keys [type required? description]}]
-  (let [{::sp/keys [gql-type scalar-key] :as record} (get-field type)]
-    [(csk/->camelCaseKeyword arg-key)
-     (-> {:type (maybe-non-null (or gql-type scalar-key) required?)}
-         (-assoc-description (or description (::sp/description record))))]))
-
-(defmethod transform-arg :entity
-  [arg-key {:keys [type required? description]}]
-  (let [record (get-entity type)]
-    [(csk/->camelCaseKeyword arg-key)
-     (-> {:type (maybe-non-null type required?)}
-         (-assoc-description (or description (::sp/description record))))]))
-
-(defmethod transform-arg :graphql
-  [arg-key {:keys [type description required?] :as record}]
-  [(csk/->camelCaseKeyword arg-key)
-   (-> {:type (maybe-non-null type required?)}
-       (-assoc-description description))])
-
-(defn -transform-arg
-  [[arg1 arg2]]
-  (transform-arg arg1 arg2))
-
-(defn transform-return-type
-  [k]
-  (let [k (or (-> (or (and (entity? k) (get-entity k))
-                      (and (field?  k) (get-field  k))
-                      (and (scalar? k) (get-scalar k)))
-                  ::sp/gql-type)
-              k)]
-    (csk/->PascalCaseSymbol k)))
-
 (defn transform-query
   [query-key {:keys [args type description resolve] :as record}]
   (when-not type
@@ -241,7 +200,11 @@
                                                      :record    record})))
   [(csk/->camelCaseKeyword query-key)
    (cond-> {:type (transform-return-type type)}
-     args        (assoc :args        (->> args (map -transform-arg) (into {})))
+     args        (assoc :args        (->> args
+                                          gql-fields->fields
+                                          (map maybe-merge-field-or-scalar)
+                                          (map transform-field)
+                                          (into {})))
      resolve     (assoc :resolve     resolve)
      description (assoc :description description))])
 
@@ -254,7 +217,11 @@
                                                  :record       record})))
   [(csk/->camelCaseKeyword mutation-key)
    (cond-> {:type (transform-return-type type)}
-     args        (assoc :args        (->> args (map -transform-arg) (into {})))
+     args        (assoc :args        (->> args
+                                          gql-fields->fields
+                                          (map maybe-merge-field-or-scalar)
+                                          (map transform-field)
+                                          (into {})))
      resolve     (assoc :resolve     resolve)
      description (assoc :description description))])
 
