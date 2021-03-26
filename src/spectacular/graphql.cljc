@@ -26,7 +26,7 @@
   [entity-key]
   {:object-type :graphql
    :fields      {:total   {:type :int       :required? true :description "Total number of matched results."}
-                 :records {:type entity-key :list? true :required? true}
+                 :records {:type entity-key :list? true :required? true :description nil}
                  :page    {:type :page}}})
 
 ;;;
@@ -88,8 +88,14 @@
   (when-not (or field-key sp-field-key)
     (throw (ex-info "Must have a Field key" record)))
   ;;
-  (let [label (or label       sp-label)
-        desc  (or description sp-description)
+  ;; Respect nil overrides, ie, :description nil should suppress the
+  ;; sp-description.
+  (let [label (if (contains? record :label)
+                label
+                sp-label)
+        desc  (if (contains? record :description)
+                description
+                sp-description)
         ;;
         required?       (if (contains? options :optional?)
                           (not optional?)
