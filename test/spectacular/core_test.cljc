@@ -199,6 +199,27 @@
                                       :pickup2     {:type 'Pickup2}
                                       :pickup3     {:type 'Pickup3}
                                       :players     {:type '(list (non-null Player)) :resolve 'fetch-guitar-players}}
+                             :description "Traditionally a 6 stringed instrument."}}}))
+
+  (is (= (gql/make-schema {:objects {:guitar {:object-type :entity
+                                              :entity-key  ::guitar
+                                              :fields      {:players {:type    ::player
+                                                                      :list?   true
+                                                                      :args    {:name-like {:type :string :description "Wildcard matching on Player Name."}
+                                                                                :brand     {:type ::guitar-brand}}
+                                                                      :resolve 'fetch-guitar-players}}}}})
+         {:objects {:Guitar {:fields
+                             {:guitarUuid  {:type 'WeirdoUuid  :description "Globally Unique ID."}
+                              :guitarBrand {:type 'GuitarBrand :description "A small selection of Guitar Brands"}
+                              :name        {:type 'String      :description "BB King called his 'Lucille'."}
+                              :age         {:type 'Integer     :description "Age in years."}
+                              :pickup1     {:type 'Pickup1}
+                              :pickup2     {:type 'Pickup2}
+                              :pickup3     {:type 'Pickup3}
+                              :players     {:type '(list (non-null Player))
+                                            :args {:nameLike {:type 'String      :description "Wildcard matching on Player Name."}
+                                                   :brand    {:type 'GuitarBrand :description "A small selection of Guitar Brands"}}
+                                            :resolve 'fetch-guitar-players}}
                              :description "Traditionally a 6 stringed instrument."}}})))
 
 (deftest gql-schema-input-objects

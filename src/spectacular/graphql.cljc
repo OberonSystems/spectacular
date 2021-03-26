@@ -85,7 +85,7 @@
     sp-label       ::sp/label
     sp-description ::sp/description
     sp-required?   ::sp/required?
-    :keys [field-key type label description resolve required? list?]
+    :keys [field-key type label description args resolve required? list?]
     :as record}
    & {:keys [optional? debug?] :as options}]
   (when debug? (println record))
@@ -117,6 +117,10 @@
                       :else                 gql-schema-type)}
 
        desc    (assoc :description desc)
+       args    (assoc :args        (->> args
+                                        gql-fields->fields
+                                        (map transform-field)
+                                        (into {})))
        resolve (assoc :resolve     resolve))]))
 
 (defn transform-return-type
