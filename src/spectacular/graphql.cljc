@@ -15,6 +15,26 @@
   [m]
   (map->nsmap m 'spectacular.core))
 
+(defn gql-field->field
+  [{:keys [field-key type] :as record}]
+  (let [type (or type field-key)]
+    (cond
+      (entity? type) (merge (get-entity           type) record)
+      (field?  type) (merge (get-field-and-scalar type) record)
+      (scalar? type) (merge (get-scalar           type) record)
+      :else record)))
+
+(defn gql-fields->fields
+  [fields]
+  ;; Graphql fields come in as a map and we need to assoc the key of
+  ;; the map into the values to make it conform to the shape of a
+  ;; spectacular/field.
+  (->> fields
+       (map (fn [[k v]]
+              (-> v
+                  (assoc :field-key k)
+                  gql-field->field)))))
+
 ;;;
 
 (def +page-object+
@@ -57,22 +77,6 @@
        (-assoc-description description))])
 
 ;;; --------------------------------------------------------------------------------
-
-(defn gql-fields->fields
-  [fields]
-  ;; Graphql fields come in as a map and we need to assoc the key of
-  ;; the map into the values to make it conform to the shape of a
-  ;; spectacular/field.
-  (->> fields
-       (map (fn [[k v]]
-              (assoc v :field-key k)))))
-
-(defn maybe-merge-field-or-scalar
-  [{:keys [type] :as record}]
-  (cond
-    (field?  type) (merge (get-field-and-scalar type) record)
-    (scalar? type) (merge (get-scalar           type) record)
-    :else record))
 
 (defn transform-field
   [{sp-field-key   ::sp/field-key
@@ -208,7 +212,6 @@
    (cond-> {:type (transform-return-type type)}
      args        (assoc :args        (->> args
                                           gql-fields->fields
-                                          (map maybe-merge-field-or-scalar)
                                           (map transform-field)
                                           (into {})))
      resolve     (assoc :resolve     resolve)
@@ -225,7 +228,6 @@
    (cond-> {:type (transform-return-type type)}
      args        (assoc :args        (->> args
                                           gql-fields->fields
-                                          (map maybe-merge-field-or-scalar)
                                           (map transform-field)
                                           (into {})))
      resolve     (assoc :resolve     resolve)
