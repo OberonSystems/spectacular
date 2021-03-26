@@ -227,27 +227,16 @@
 
 ;;;
 
-(defn -transform-object
-  [[arg1 arg2]]
-  (transform-object arg1 arg2))
-
-(defn -transform-input-object
-  [[arg1 arg2]]
-  (transform-input-object arg1 arg2))
-
-(defn -transform-query
-  [[arg1 arg2]]
-  (transform-query arg1 arg2))
-
-(defn -transform-mutation
-  [[arg1 arg2]]
-  (transform-mutation arg1 arg2))
+(defn -map-transform
+  [f coll]
+  (map #(f (first %) (second %)) coll))
 
 (defn make-schema
   [{:keys [enums objects input-objects queries mutations]}]
-  (cond-> nil
-    enums         (assoc :enums         (->> (mapv transform-enum          enums)         (into {})))
-    objects       (assoc :objects       (->> (mapv -transform-object       objects)       (into {})))
-    input-objects (assoc :input-objects (->> (mapv -transform-input-object input-objects) (into {})))
-    queries       (assoc :queries       (->> (mapv -transform-query        queries)       (into {})))
-    mutations     (assoc :mutations     (->> (mapv -transform-mutation     mutations)     (into {})))))
+  (let []
+   (cond-> nil
+     enums         (assoc :enums         (->> enums         (map transform-enum)                    (into {})))
+     objects       (assoc :objects       (->> objects       (-map-transform transform-object)       (into {})))
+     input-objects (assoc :input-objects (->> input-objects (-map-transform transform-input-object) (into {})))
+     queries       (assoc :queries       (->> queries       (-map-transform transform-query)        (into {})))
+     mutations     (assoc :mutations     (->> mutations     (-map-transform transform-mutation)     (into {}))))))
