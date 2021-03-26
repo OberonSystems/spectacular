@@ -122,6 +122,11 @@
   (-> (get-field k ::scalar-key)
       get-scalar))
 
+(defn get-field-and-scalar
+  [k]
+  (merge (get-field-scalar k)
+         (get-field        k)))
+
 ;;;
 
 (defonce +entities+ (atom {}))
@@ -220,10 +225,8 @@
      (->> fields
           (map (fn [field-key]
                  (let [entity (-get-entity field-key)
-                       field  (when-not entity (get-field        field-key))
-                       scalar (when-not entity (get-field-scalar field-key))]
+                       field  (when-not entity (get-field-and-scalar field-key))]
                    (merge {::field-key field-key}
-                          scalar
                           field
                           entity
                           (get overrides field-key)
