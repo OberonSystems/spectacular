@@ -138,8 +138,9 @@
                              object-type))
 
 (defmethod transform-object :entity-token
-  [object-key {:keys [entity-key] :as record}]
-  (if-let [fields (->> (get-identity-fields entity-key)
+  [object-key {:keys [entity-key exclude fields] :as record}]
+  (if-let [fields (->> (concat (get-identity-fields entity-key :exclude exclude)
+                               (gql-fields->fields  fields))
                        (map transform-field)
                        (into {}))]
     [(csk/->PascalCaseKeyword object-key) {:fields fields}]
@@ -147,9 +148,9 @@
                     {:object-key object-key :record record}))))
 
 (defmethod transform-object :entity
-  [object-key {:keys [entity-key fields] :as record}]
+  [object-key {:keys [entity-key exclude fields] :as record}]
   [(csk/->PascalCaseKeyword object-key)
-   (-> {:fields (->> (concat (get-entity-fields  entity-key)
+   (-> {:fields (->> (concat (get-entity-fields  entity-key nil :exclude exclude)
                              (gql-fields->fields fields))
                      (map #(transform-field % :optional? true))
                      (into {}))}
@@ -170,11 +171,11 @@
                                    object-type))
 
 (defmethod transform-input-object :entity-token
-  [object-key {:keys [entity-key] :as record}]
-  (if-let [fields (some->> entity-key
-                           get-identity-fields
+  [object-key {:keys [entity-key fields] :as record}]
+  (if-let [fields (some->> (concat (get-identity-fields entity-key)
+                                   (gql-fields->fields fields))
                            (map transform-field)
-                           (into {})) ]
+                           (into {}))]
     [(csk/->PascalCaseKeyword object-key)
      (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))]
     (throw (ex-info "An Entity must have Identity Fields in order for it to be transformed it to an Token Input Object."
@@ -182,9 +183,9 @@
                      :record     record}))))
 
 (defmethod transform-input-object :entity
-  [object-key {:keys [entity-key] :as record}]
-  (if-let [fields  (some->> entity-key
-                            get-entity-fields
+  [object-key {:keys [entity-key exclude fields] :as record}]
+  (if-let [fields  (some->> (concat (get-entity-fields entity-key nil :exclude exclude)
+                                    (gql-fields->fields fields))
                             (map transform-field)
                             (into {}))]
     [(csk/->PascalCaseKeyword object-key)
@@ -194,9 +195,9 @@
                      :record     record}))))
 
 (defmethod transform-input-object :entity-content
-  [object-key {:keys [entity-key] :as record}]
-  (if-let [fields  (some->> entity-key
-                            get-content-fields
+  [object-key {:keys [entity-key exclude fields] :as record}]
+  (if-let [fields  (some->> (concat (get-content-fields entity-key :exclude exclude)
+                                    (gql-fields->fields fields))
                             (map transform-field)
                             (into {}))]
     [(csk/->PascalCaseKeyword object-key)

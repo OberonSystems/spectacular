@@ -217,12 +217,19 @@
   (get-entity k ::content-keys))
 
 (defn get-entity-fields
-  ([k]
-   (get-entity-fields k (get-entity k ::field-keys)))
-  ([k fields]
-   (let [required-key? (get-entity k ::required-key?)
+  ([k] (get-entity-fields k nil))
+  ([k field-keys & {:keys [exclude]}]
+   (let [field-keys    (if (nil? field-keys)
+                         (get-entity k ::field-keys)
+                         field-keys)
+         exclude?      (set exclude)
+         required-key? (get-entity k ::required-key?)
          overrides     (get-entity k ::fields)]
-     (->> fields
+     (when (and exclude (not (subset? exclude? (set field-keys))))
+       (throw (ex-info "'exclude' keys must be a subset of 'field-keys'"
+                       {:k k :field-keys field-keys :exclude exclude})))
+     (->> field-keys
+          (remove #(exclude? %))
           (map (fn [field-key]
                  (let [entity (-get-entity field-key)
                        field  (when-not entity (get-field-and-scalar field-key))]
@@ -233,9 +240,9 @@
                           (when (required-key? field-key) {::required? true})))))))))
 
 (defn get-identity-fields
-  [k]
-  (->> k get-identity-keys (get-entity-fields k)))
+  [k & {:keys [exclude]}]
+  (get-entity-fields k (get-identity-keys k) :exclude exclude))
 
 (defn get-content-fields
-  [k]
-  (->> k get-content-keys (get-entity-fields k)))
+  [k & {:keys [exclude]}]
+  (get-entity-fields k (get-content-keys k) :exclude exclude))
