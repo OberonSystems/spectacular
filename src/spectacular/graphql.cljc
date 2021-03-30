@@ -124,19 +124,16 @@
        resolve (assoc :resolve     resolve))]))
 
 (defn transform-return-type
-  [k]
-  (let [{k :type list? :list?} (if (map? k)
-                                 k
-                                 {:type k})
-        k (or (-> (or (and (entity? k) (get-entity k))
+  [k list?]
+  (let [k (or (-> (or (and (entity? k) (get-entity k))
                       (and (field?  k) (get-field  k))
                       (and (scalar? k) (get-scalar k)))
                   ::sp/gql-type)
               k)
         gql-schema-type (csk/->PascalCaseSymbol k)]
-    (cond
-      list? `(~'list (~'non-null ~gql-schema-type))
-      :else gql-schema-type)))
+    (if list?
+      `(~'list (~'non-null ~gql-schema-type))
+      gql-schema-type)))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -215,12 +212,12 @@
 ;;;
 
 (defn transform-query
-  [query-key {:keys [args type description resolve] :as record}]
+  [query-key {:keys [args type list? description resolve] :as record}]
   (when-not type
     (throw (ex-info "Query must have a return type" {:query-key query-key
                                                      :record    record})))
   [(csk/->camelCaseKeyword query-key)
-   (cond-> {:type (transform-return-type type)}
+   (cond-> {:type (transform-return-type type list?)}
      args        (assoc :args        (->> args
                                           gql-fields->fields
                                           (map transform-field)
@@ -231,12 +228,12 @@
 ;;;
 
 (defn transform-mutation
-  [mutation-key {:keys [args type description resolve] :as record}]
+  [mutation-key {:keys [args type list? description resolve] :as record}]
   (when-not type
     (throw (ex-info "Mutation must have a type" {:mutation-key mutation-key
                                                  :record       record})))
   [(csk/->camelCaseKeyword mutation-key)
-   (cond-> {:type (transform-return-type type)}
+   (cond-> {:type (transform-return-type type list?)}
      args        (assoc :args        (->> args
                                           gql-fields->fields
                                           (map transform-field)
