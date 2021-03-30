@@ -125,12 +125,18 @@
 
 (defn transform-return-type
   [k]
-  (let [k (or (-> (or (and (entity? k) (get-entity k))
+  (let [{k :type list? :list?} (if (map? k)
+                                 k
+                                 {:type k})
+        k (or (-> (or (and (entity? k) (get-entity k))
                       (and (field?  k) (get-field  k))
                       (and (scalar? k) (get-scalar k)))
                   ::sp/gql-type)
-              k)]
-    (csk/->PascalCaseSymbol k)))
+              k)
+        gql-schema-type (csk/->PascalCaseSymbol k)]
+    (cond
+      list? `(~'list (~'non-null ~gql-schema-type))
+      :else gql-schema-type)))
 
 ;;; --------------------------------------------------------------------------------
 

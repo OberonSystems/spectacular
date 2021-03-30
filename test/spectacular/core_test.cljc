@@ -348,7 +348,20 @@
                     :fetchGuitar {:type 'Guitar
                                   :args {:token {:type '(non-null GuitarToken)}}
                                   :resolve 'fetch-guitar
-                                  :description "Fetches a single guitar"}}})))
+                                  :description "Fetches a single guitar"}}}))
+
+  (is (= (gql/make-schema {:queries {:fetch-guitars {:args        {:guitar-brand {:type ::guitar-brand}
+                                                                   :wildcard     {:type :string :description "Wild card search for guitar."}
+                                                                   :page         {:type ::gql/page}}
+                                                     :type        {:type  ::guitar
+                                                                   :list? true}
+                                                     :resolve     'fetch-guitars}}})
+         {:queries {:fetchGuitars
+                    {:type '(list (non-null Guitar))
+                     :args {:guitarBrand {:type 'GuitarBrand :description "A small selection of Guitar Brands"}
+                            :wildcard    {:type 'String :description "Wild card search for guitar."}
+                            :page        {:type 'Page}}
+                     :resolve 'fetch-guitars}}})))
 
 (deftest gql-schema-mutations
   (is (= (gql/make-schema {:mutations {:add-guitar    {:args    {:record {:type ::guitar-in :required? true}}
