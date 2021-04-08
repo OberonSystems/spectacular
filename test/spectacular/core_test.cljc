@@ -76,6 +76,11 @@
                  ::sp/required-keys [::age]
                  ::sp/fields        {::name {::sp/label       "Player Name"
                                              ::sp/description "Usually something cool."}})
+(clone-entity ::player-2 ::player)
+
+(register-entity ::band
+                 [::name ::player ::player-2]
+                 ::sp/identity-keys [::name])
 
 (deftest test-scalars
   (is (= (get-scalar-description ::string) "Non Blank String"))
@@ -384,3 +389,29 @@
                       :removeGuitar {:type    'Boolean
                                      :args    {:token {:type '(non-null GuitarTokenIn)}}
                                      :resolve 'remove-guitar}}})))
+
+(deftest gql-clashing-objects
+  "A single entity is used as an entity field and needs to be renamed
+  for the input-object section."
+  (is (= (gql/make-schema {:objects       {:player   {:object-type :entity :entity-key ::player}
+                                           :player-2 {:object-type :entity :entity-key ::player-2}
+                                           :band     {:object-type :entity :entity-key ::band}}
+                           :input-objects {:player-in   {:object-type :entity :entity-key ::player}
+                                           :player-2-in {:object-type :entity :entity-key ::player-2}
+                                           :band-in     {:object-type :entity
+                                                         :entity-key  ::band
+                                                         :rename-type gql/rename-to-object-in}}})
+         {:objects {:Player  {:fields {:name {:type 'String  :description "Usually something cool."}
+                                       :age  {:type 'Integer :description "Age in years."}}}
+                    :Player2 {:fields {:name {:type 'String  :description "Usually something cool."}
+                                       :age  {:type 'Integer :description "Age in years."}}}
+                    :Band    {:fields {:name    {:type 'String :description "Non Blank String"}
+                                       :player  {:type 'Player}
+                                       :player2 {:type 'Player2}}}}
+          :input-objects {:PlayerIn  {:fields {:name {:type '(non-null String)  :description "Usually something cool."}
+                                               :age  {:type '(non-null Integer) :description "Age in years."}}}
+                          :Player2In {:fields {:name {:type '(non-null String)  :description "Usually something cool."}
+                                               :age  {:type '(non-null Integer) :description "Age in years."}}}
+                          :BandIn    {:fields {:name    {:type '(non-null String) :description "Non Blank String"}
+                                               :player  {:type 'PlayerIn}
+                                               :player2 {:type 'Player2In}}}}})))

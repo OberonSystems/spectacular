@@ -78,6 +78,13 @@
 
 ;;; --------------------------------------------------------------------------------
 
+(defn rename-to-object-in
+  [type-key]
+  (when (sp/entity? type-key)
+    (-> (name type-key)
+        (str "-in")
+        symbol)))
+
 (defn transform-field
   [{sp-field-key   ::sp/field-key
     sp-gql-type    ::sp/gql-type
@@ -87,7 +94,7 @@
     sp-required?   ::sp/required?
     :keys [field-key type label description args resolve required? list?]
     :as record}
-   & {:keys [optional? debug?] :as options}]
+   & {:keys [rename-type optional? debug?] :as options}]
   (when debug? (println record))
   (when-not (or field-key sp-field-key)
     (throw (ex-info "Must have a Field key" record)))
@@ -107,9 +114,13 @@
         gql-schema-type (-> (or type sp-gql-type
                                 sp-scalar-key
                                 field-key sp-field-key)
+                            (as-> type-key
+                                (if rename-type
+                                  (or (rename-type type-key) type-key)
+                                  type-key))
                             name
                             csk/->PascalCaseSymbol)]
-    [(csk/->camelCaseKeyword (or field-key sp-field-key))
+    [(-> (or field-key sp-field-key) csk/->camelCaseKeyword)
      (cond-> {:type (cond
                       (and required? list?) `(~'non-null (~'list (~'non-null ~gql-schema-type)))
                       required?             `(~'non-null ~gql-schema-type)
@@ -174,10 +185,10 @@
                                    object-type))
 
 (defmethod transform-input-object :entity-token
-  [object-key {:keys [entity-key fields] :as record}]
+  [object-key {:keys [entity-key fields rename-type] :as record}]
   (if-let [fields (some->> (concat (get-identity-fields entity-key)
                                    (gql-fields->fields fields))
-                           (map transform-field)
+                           (map #(transform-field % :rename-type rename-type))
                            (into {}))]
     [(csk/->PascalCaseKeyword object-key)
      (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))]
@@ -186,10 +197,10 @@
                      :record     record}))))
 
 (defmethod transform-input-object :entity
-  [object-key {:keys [entity-key exclude fields] :as record}]
+  [object-key {:keys [entity-key exclude fields rename-type] :as record}]
   (if-let [fields  (some->> (concat (get-entity-fields entity-key nil :exclude exclude)
                                     (gql-fields->fields fields))
-                            (map transform-field)
+                            (map #(transform-field % :rename-type rename-type))
                             (into {}))]
     [(csk/->PascalCaseKeyword object-key)
      (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))]
@@ -198,10 +209,10 @@
                      :record     record}))))
 
 (defmethod transform-input-object :entity-content
-  [object-key {:keys [entity-key exclude fields] :as record}]
+  [object-key {:keys [entity-key exclude fields rename-type] :as record}]
   (if-let [fields  (some->> (concat (get-content-fields entity-key :exclude exclude)
                                     (gql-fields->fields fields))
-                            (map transform-field)
+                            (map #(transform-field % :rename-type rename-type))
                             (into {}))]
     [(csk/->PascalCaseKeyword object-key)
      (-> {:fields fields} (-assoc-description (get-entity-description entity-key)))]
