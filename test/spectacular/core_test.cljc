@@ -405,19 +405,24 @@
                                        :age  {:type 'Integer :description "Age in years."}}}
                     :Player2 {:fields {:name {:type 'String  :description "Usually something cool."}
                                        :age  {:type 'Integer :description "Age in years."}}}
-                    :Band    {:fields {:name    {:type 'String}
+                    :Band    {:fields {:name    {:type 'String :description "Non Blank String"}
                                        :player  {:type 'Player}
                                        :player2 {:type 'Player2}}}}
           :input-objects {:PlayerIn  {:fields {:name {:type '(non-null String)  :description "Usually something cool."}
                                                :age  {:type '(non-null Integer) :description "Age in years."}}}
                           :Player2In {:fields {:name {:type '(non-null String)  :description "Usually something cool."}
                                                :age  {:type '(non-null Integer) :description "Age in years."}}}
-                          :BandIn    {:fields {:name    {:type '(non-null String)}
+                          :BandIn    {:fields {:name    {:type '(non-null String) :description "Non Blank String"}
                                                :player  {:type 'PlayerIn}
                                                :player2 {:type 'Player2In}}}}})))
 
+(register-scalar ::positive-integer int?
+                 ::sp/gql-type :int)
+
+(register-field ::test-post ::positive-integer)
+
 (register-entity ::guitar-item
-                 [::name ::age]
+                 [::name ::age ::test-post]
                  ::sp/required-keys [::name])
 
 (register-field ::my-guitar ::guitar-item)
@@ -427,6 +432,6 @@
 (deftest gql-nested-entities
   (is (= (gql/make-schema {:objects {:me {:object-type :entity :entity-key ::me}}})
          {:objects {:Me {:fields
-                         {:name {:type 'String}
+                         {:name {:type 'String :description "Non Blank String"}
                           :age {:type 'Integer :description "Age in years."}
                           :myGuitar {:type 'GuitarItem}}}}})))

@@ -133,10 +133,11 @@
 
 (defn get-field-and-scalar
   [k]
-  (merge (cond
-           (scalar? k) (get-field-scalar k)
-           (entity? k) (get-field-entity k))
-         (get-field k)))
+  (let [scalar-key (get-field k ::scalar-key)]
+   (merge (cond
+            (entity? scalar-key) (get-field-entity k)
+            :else (get-field-scalar k))
+          (get-field k))))
 
 ;;;
 
