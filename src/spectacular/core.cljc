@@ -90,13 +90,17 @@
 
 ;;;
 
+(declare entity? get-entity)
+
 (defonce +fields+ (atom {}))
 
 (defmacro register-field
   [k sk & {:as info}]
   ;; Fixme: do some validation on k and sk being namespaced keys
-  (when-not (scalar? sk)
-    (throw (ex-info "Cannot register field for unregistered scalar." {:field-key k :scalar-key sk})))
+  (when-not (or (scalar? sk)
+                (entity? sk))
+    (throw (ex-info "Cannot register field for unregistered scalar or entity." {:field-key k
+                                                                                :scalar-or-entity-key sk})))
   `(do
      (s/def ~k (s/get-spec ~sk))
      (-set! +fields+ ~k (assoc ~info ::scalar-key ~sk))))
@@ -122,10 +126,17 @@
   (-> (get-field k ::scalar-key)
       get-scalar))
 
+(defn get-field-entity
+  [k]
+  (-> (get-field k ::scalar-key)
+      get-entity))
+
 (defn get-field-and-scalar
   [k]
-  (merge (get-field-scalar k)
-         (get-field        k)))
+  (merge (cond
+           (scalar? k) (get-field-scalar k)
+           (entity? k) (get-field-entity k))
+         (get-field k)))
 
 ;;;
 
