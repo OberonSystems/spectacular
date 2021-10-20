@@ -1,248 +1,158 @@
 (ns spectacular.core
   (:require [clojure.pprint :refer [pprint]]
             [clojure.spec.alpha :as s]
-            [clojure.set :refer [subset? intersection]]
+            [clojure.set :refer [subset? intersection difference]]
             ;;
             [spectacular.utils :refer [keyword->label]]))
 
 ;;;
 
-(defn -set!
-  [cache k m]
-  ;; Maintain an ordinal of when a map was added to a cache so that we
-  ;; can return values in the order they were added.
-  ;;
-  ;; Very helpful when debugging or doing code gen.
-  (swap! cache #(assoc % k
-                       (assoc m ::ordinal (or (get   @cache [k ::ordinal])
-                                              (count @cache)))))
-  ;; It gets noisy in the repl when always returning the updated cache
-  ;; so just return nil.
-  nil)
-
-(defn -get
-  [cache k kind]
-  (if-let [record (get @cache k)]
-    record
-    (throw (ex-info (str kind " not found.")
-                    {:k k :kind kind}))))
-
-(defn -get-in
-  [cache k ks kind]
-  (if-let [val (get-in @cache k ks)]
-    val
-    (throw (ex-info (str kind " not found.")
-                    {:k k :ks ks :kind kind}k))))
-
-(defn -exists?
-  [cache k]
-  (contains? @cache k))
+(defonce +registry+ (atom {}))
 
 ;;;
 
-(defonce +scalars+ (atom {}))
+(defn -set
+  [k kind m]
+  ;; Fixme: do some validation on k being a namespaced key
+  (swap! +registry+ #(assoc % k (assoc m ::kind kind)))
+  k)
 
-(defmacro register-scalar
-  [k pred & {:as info}]
-  (let [k#    k
-        pred# pred
-        info# info]
-    `(do
-       (s/def ~k ~pred#)
-       (-set! +scalars+ ~k ~info#))))
+(defn -get
+  ([& ks]
+   (let [[k & ks :as params] (flatten ks)]
+     (cond
+       (nil? ks) (get    @+registry+ k)
+       :else     (get-in @+registry+ params)))))
+
+(defn exists?
+  [k]
+  (contains? @+registry+ k))
 
 (defn scalar?
   [k]
-  (-exists? +scalars+ k))
+  (= (-get k ::kind) ::scalar))
 
-(defn get-scalar
-  ([k]      (-get +scalars+ k "Scalar"))
-  ([k & ks] (-> (get-scalar k) (get-in ks))))
-
-(defn get-scalar-label
+(defn attr?
   [k]
-  (get-scalar k ::label))
-
-(defn get-scalar-description
-  [k]
-  (get-scalar k ::description))
-
-;;; A bit of extra sugar on top of scalars
-
-(defmacro register-enum
-  [k values & {:as info}]
-  `(let [values# ~values]
-     (s/def ~k (set values#))
-     (-set! +scalars+ ~k (assoc ~info ::values values#))))
-
-(defn get-enum-values
-  [k]
-  (or (get-scalar k ::values)
-      (throw (ex-info "Scalar is not an enum." k))))
-
-(defn get-enum-labels
-  [k]
-  (let [labels (get-scalar k ::labels)]
-    (->> (get-enum-values k)
-         (mapv (fn [value]
-                 [value (or (get labels value)
-                            (keyword->label value))])))))
-
-;;;
-
-(defonce +fields+ (atom {}))
-
-(defmacro register-field
-  [k sk & {:as info}]
-  ;; Fixme: do some validation on k and sk being namespaced keys
-  (when-not (scalar? sk)
-    (throw (ex-info "Cannot register field for unregistered scalar." {:field-key k :scalar-key sk})))
-  `(do
-     (s/def ~k (s/get-spec ~sk))
-     (-set! +fields+ ~k (assoc ~info ::scalar-key ~sk))))
-
-(defn field?
-  [k]
-  (-exists? +fields+ k))
-
-(defn get-field
-  ([k]      (-get +fields+ k "Field"))
-  ([k & ks] (-> (get-field k) (get-in ks))))
-
-(defn get-field-label
-  [k]
-  (get-field k ::label))
-
-(defn get-field-description
-  [k]
-  (get-field k ::description))
-
-(defn get-field-scalar
-  [k]
-  (-> (get-field k ::scalar-key)
-      get-scalar))
-
-(defn get-field-and-scalar
-  [k]
-  (merge (get-field-scalar k)
-         (get-field        k)))
-
-;;;
-
-(defonce +entities+ (atom {}))
+  (= (-get k ::kind) ::attribute))
 
 (defn entity?
   [k]
-  (-exists? +entities+ k))
+  (= (-get k ::kind) ::entity))
 
-(defmacro register-entity
-  [k field-keys & {::keys [identity-keys required-keys] :as info}]
-  ;; FIXME: Add spec checks for all field keys to be non-empty sequences of
-  ;; namespaced keys.
-  (let [field-key?    (set field-keys)
-        identity-key? (set identity-keys)
-        required-key? (set (concat identity-keys required-keys))
-        ;;
-        content-keys  (some->> field-keys (remove identity-key?) seq vec)
-        content-key?  (set content-keys)
-        ;;
-        required-keys (some->> field-keys (filter required-key?) seq vec)
-        optional-keys (some->> field-keys (remove required-key?) seq vec)
-        ;;
-        error (cond
-                (and identity-keys (not (subset? identity-key? field-key?))) "Identity keys must be a subset of field keys."
-                (and required-keys (not (subset? required-key? field-key?))) "Required keys must be a subset of field keys."
-                (and (and identity-keys required-keys)
-                     (not (subset? identity-keys required-key?))) "Identity keys must be a subset of Required keys.")]
-    (when error
-      (throw (ex-info error {:k             k
-                             :field-keys    field-keys
-                             :identity-keys identity-keys
-                             :required-keys required-keys})))
-    (when-let [unregistered (->> field-keys (remove field?) (remove entity?) seq)]
-      (throw (ex-info "Cannot register an entity with an unregistered fields."
-                      {:k k :unregistered unregistered})))
-    `(do
-       (s/def ~k (s/keys :req ~required-keys
-                         :opt ~optional-keys))
-       (-set! +entities+ ~k (assoc ~info
-                                   ::field-keys   ~field-keys
-                                   ::content-keys ~content-keys
-                                   ;;
-                                   ::field-key?    ~field-key?
-                                   ::identity-key? ~identity-key?
-                                   ::required-key? ~required-key?
-                                   ::content-key?  ~content-key?)))))
+;;;
 
-(defn get-entity
-  ([k]      (-get +entities+ k "Entity"))
-  ([k & ks] (-> (get-entity k) (get-in ks))))
-
-(defn -get-entity
-  "Get entity or nil, sometimes we don't want to throw when we don't find a registered entity."
-  [k]
-  (get @+entities+ k))
-
-(defmacro clone-entity
-  [nk k]
-  ;; Validate that k and nk are namespaced keys
-  (when-not (entity? k) (throw (ex-info "Cannot clone an unregistered entity." {:k k :nk nk})))
+(defmacro scalar
+  [k pred & {:as info}]
   `(do
-     (s/def ~nk (s/get-spec ~k))
-     (-set! +entities+ ~nk (get-entity ~k))
-     ~nk))
+     (s/def ~k ~pred)
+     (-set  ~k ::scalar ~info)))
 
-(defn get-entity-label
+(defmacro enum
+  [k values & {:as info}]
+  (when (empty? values)
+    (ex-info "Cannot register an enum without values." {:scalar-key k :values values}))
+  (let [enums (set values)]
+    `(do
+       (s/def ~k ~enums)
+       (-set  ~k ::scalar (assoc ~info
+                                 ::values ~values
+                                 ::enum?  true)))))
+
+(defmacro attribute
+  [k sk & {:as info}]
+  (when-not (exists? sk)
+    (throw (ex-info "Cannot register an attribute for unregistered scalar." {:attribute-key k :scalar-key sk})))
+  `(do
+     (s/def ~k (s/get-spec ~sk))
+     (-set ~k ::attribute (assoc ~info ::scalar-key ~sk))))
+
+(defn- ns-keyword?
   [k]
-  (get-entity k ::label))
+  (and (keyword? k)
+       (namespace k)))
 
-(defn get-entity-description
+(defmacro entity
+  [k attribute-keys & {:keys [::identity-keys ::required-keys] :as info}]
+  (let [attribute-set (set attribute-keys)
+        identity-set  (set identity-keys)
+        required-set  (set required-keys)
+        ;;
+        optional-keys (difference attribute-set required-set)
+        ;;
+        ;; Reduce to non-empty vectors or nil for simplicity
+        [attribute-keys identity-keys required-keys optional-keys]
+        (map (fn [ks] (if (empty? ks) nil (vec ks)))
+             [attribute-keys identity-keys required-keys optional-keys])]
+    (when-let [[error info] (cond
+                              (empty? attribute-keys)
+                              ["You must provide attribute-keys."]
+
+                              (not (every? ns-keyword? attribute-keys))
+                              ["All attribute-keys must be namespaced keywords."]
+
+                              (not (subset? identity-set attribute-set))
+                              ["The identity-keys must be a subset of attribute-keys."]
+
+                              (not (subset? required-set attribute-set))
+                              ["The required-keys must be a subset of attribute-keys."]
+
+                              (not (every? attr? attribute-keys))
+                              ["Cannot register an entity with unregistered attributes."
+                               {:unregistered (->> attribute-keys (remove attr?))}])]
+      (throw (ex-info error (merge {:k              k
+                                    :attribute-keys attribute-keys
+                                    :identity-keys  identity-keys
+                                    :required-keys  required-keys}
+                                   info))))
+    `(do
+       (s/def ~k (s/keys :req ~required-keys :opt ~optional-keys))
+       (-set  ~k ::entity (assoc ~info
+                                 ::attribute-keys ~attribute-keys
+                                 ::identity-keys  ~identity-keys
+                                 ::required-keys  ~required-keys
+                                 ::optional-keys  ~optional-keys)))))
+
+;;; --------------------------------------------------------------------------------
+
+(defn label
   [k]
-  (get-entity k ::description))
+  (or (-get k ::label)
+      (keyword->label k)))
 
-(defn get-field-keys
+(defn values
   [k]
-  (get-entity k ::field-keys))
+  (-get k ::values))
 
-(defn get-identity-keys
+(defn -enum-values->label
+  [k f]
+  (let [f (or f keyword->label)]
+    (some->> (values k)
+             (map (fn [value]
+                    [value (f value)]))
+             seq
+             (into {}))))
+
+(defn labels
   [k]
-  (get-entity k ::identity-keys))
+  (-enum-values->label k (-get k ::labels)))
 
-(defn get-required-keys
+(defn abbreviations
   [k]
-  (get-entity k ::required-keys))
+  (-enum-values->label k (-get k ::abbrevs)))
 
-(defn get-content-keys
+(defn description
   [k]
-  (get-entity k ::content-keys))
+  (-get k ::description))
 
-(defn get-entity-fields
-  ([k] (get-entity-fields k nil))
-  ([k field-keys & {:keys [exclude]}]
-   (let [field-keys    (if (nil? field-keys)
-                         (get-entity k ::field-keys)
-                         field-keys)
-         exclude?      (set exclude)
-         required-key? (get-entity k ::required-key?)
-         overrides     (get-entity k ::fields)]
-     (when (and exclude (not (subset? exclude? (set field-keys))))
-       (throw (ex-info "'exclude' keys must be a subset of 'field-keys'"
-                       {:k k :field-keys field-keys :exclude exclude})))
-     (->> field-keys
-          (remove #(exclude? %))
-          (map (fn [field-key]
-                 (let [entity (-get-entity field-key)
-                       field  (when-not entity (get-field-and-scalar field-key))]
-                   (merge {::field-key field-key}
-                          field
-                          entity
-                          (get overrides field-key)
-                          (when (required-key? field-key) {::required? true})))))))))
+(defn attribute-keys
+  [k]
+  (-get k ::attribute-keys))
 
-(defn get-identity-fields
-  [k & {:keys [exclude]}]
-  (get-entity-fields k (get-identity-keys k) :exclude exclude))
+(defn identity-keys
+  [k]
+  (-get k ::identity-keys))
 
-(defn get-content-fields
-  [k & {:keys [exclude]}]
-  (get-entity-fields k (get-content-keys k) :exclude exclude))
+(defn required-keys
+  [k]
+  (-get k ::required-keys))
