@@ -3,7 +3,7 @@
             [clojure.spec.alpha :as s]
             [clojure.set :refer [subset? intersection difference]]
             ;;
-            [spectacular.utils :refer [keyword->label]]))
+            [spectacular.utils :refer [nsk? keyword->label]]))
 
 ;;;
 
@@ -13,7 +13,8 @@
 
 (defn -set
   [k kind m]
-  ;; Fixme: do some validation on k being a namespaced key
+  (when-not (nsk? k)
+    (throw (ex-info "Can only register Namespaced Keywords" {:k k})))
   (swap! +registry+ #(assoc % k (assoc m ::kind kind)))
   k)
 
@@ -67,11 +68,6 @@
      (s/def ~k (s/get-spec ~sk))
      (-set ~k ::attribute (assoc ~info ::scalar-key ~sk))))
 
-(defn- ns-keyword?
-  [k]
-  (and (keyword? k)
-       (namespace k)))
-
 (defmacro entity
   [k attribute-keys & {:keys [::identity-keys ::required-keys] :as info}]
   (let [attribute-set (set attribute-keys)
@@ -88,7 +84,7 @@
                               (empty? attribute-keys)
                               ["You must provide attribute-keys."]
 
-                              (not (every? ns-keyword? attribute-keys))
+                              (not (every? nsk? attribute-keys))
                               ["All attribute-keys must be namespaced keywords."]
 
                               (not (subset? identity-set attribute-set))

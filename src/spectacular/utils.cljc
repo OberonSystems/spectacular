@@ -18,3 +18,8 @@
                  (assoc acc k v)
                  acc))
              {} m))
+
+(defn nsk?
+  [k]
+  (and (keyword? k)
+       (namespace k)))
