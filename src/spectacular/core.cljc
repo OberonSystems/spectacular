@@ -41,6 +41,21 @@
   [k]
   (= (-get k ::kind) ::entity))
 
+(defn get-scalar
+  [k]
+  (when (scalar? k)
+    (-get k)))
+
+(defn get-attribute
+  [k]
+  (when (attr? k)
+    (-get k)))
+
+(defn get-entity
+  [k]
+  (when (entity? k)
+    (-get k)))
+
 ;;;
 
 (defmacro scalar
@@ -136,6 +151,10 @@
 (defn abbreviations
   [k]
   (-enum-values->label k (-get k ::abbrevs)))
+
+(defn scalar-key
+  [k]
+  (-get k ::scalar-key))
 
 (defn description
   [k]

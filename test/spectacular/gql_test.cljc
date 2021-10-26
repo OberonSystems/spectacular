@@ -68,32 +68,29 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(sp/attribute :ab/street :scalar/string   ::sp/label "Street")
-(sp/attribute :ab/state  :scalar/au-state ::sp/label "State")
+(sp/attribute :ab/street :scalar/string    ::sp/label "Street")
+(sp/attribute :ab/state :scalar/au-state-1 ::sp/label "State")
 
-(sp/entity :ab/address-1
-           [:ab/street :ab/state]
-           ::sp/required-keys [:ab/state]
-           ::sp/label         "Address"
-           ::sp/description   "An Australian Address")
+(sp/scalar :scalar/date #(instance? java.util.Date %) ::sp/description "Java Date")
+(sp/attribute :ab/day    :scalar/date
+              ::sp/label "Day"
+              ::gql/type :string)
 
-(deftest transform-attribute
-  (testing "Optional")
+(sp/attribute :ab/status :scalar/integer
+              ;;
+              ::sp/label "Computed Field"
+              ;;
+              ::gql/description "This is a resolver"
+              ::gql/resolver    'dummy-function)
 
-  (testing "Required"))
+(deftest transform-attributes
+  (= (gql/transform-attr :ab/street)
+     [:Street {:type 'String}])
 
-(deftest transform-query-objects
-  (testing "Inline Transforms"
+  (= (gql/transform-attr {:key :ab/street :description "Street"})
+     [:Street {:type 'String :description "Street"}])
 
-    {:key    :page
-     :fields {:index {:type :int :required? true :description "Zero based index of page."}
-              :size  {:type :int :required? true :description "Max number of records to include in each page."}}}
-    )
-
-  (testing "SP Transforms")
-  )
-
-(deftest transform-input-objects
-  (testing "Inline Transforms")
-
-  (testing "SP Transforms"))
+  (= (gql/transform-attr :ab/status)
+     [:Status {:type        'Integer
+               :description "This is a resolver"
+               :resolver    'dummy-function}]))
