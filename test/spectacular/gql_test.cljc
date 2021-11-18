@@ -68,8 +68,8 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(sp/attribute :ab/street :scalar/string    ::sp/label "Street")
-(sp/attribute :ab/state :scalar/au-state-1 ::sp/label "State")
+(sp/attribute :ab/street :scalar/string     ::sp/label "Street")
+(sp/attribute :ab/state  :scalar/au-state-1 ::sp/label "State")
 
 (sp/scalar :scalar/date #(instance? java.util.Date %) ::sp/description "Java Date")
 (sp/attribute :ab/day    :scalar/date
@@ -94,3 +94,23 @@
      [:Status {:type        'Integer
                :description "This is a resolver"
                :resolver    'dummy-function}]))
+
+;;; --------------------------------------------------------------------------------
+
+(sp/entity :ab/address
+           [:ab/street
+            :ab/state]
+           ::sp/required-keys [:ab/state]
+           ::sp/label         "Address"
+           ::sp/description   "An Australian Address")
+
+(deftest transform-entities-1
+  (= (gql/transform-query-object :ab/address)
+     [:Address {:fields {:Street {:type 'String}
+                         :State  {:type 'AuState1}}
+                :description "An Australian Address"}])
+
+  (= (gql/transform-input-object :ab/address)
+     [:Address {:fields {:Street {:type 'String}
+                         :State  {:type '(non-null AuState1)}}
+                :description "An Australian Address"}]))
