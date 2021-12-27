@@ -1,6 +1,61 @@
-* Ramblings
+Where are we up to?
 
-  The Key is the spec, Keys are namespaced, specs can be registered
-  elsewhere.
+I've currently forgotten how the basics work for spectacular.
 
-  Can we issue a warning if there is no spec associated with a key?
+Should I switch to doing the database side of things?
+
+What about the underlying library that hits postgresql?
+
+Do I switch and make that work?
+
+How do I test that I don't really want it all in the spec library.
+
+Can we have optionally loaded modules?
+
+- Possibly make the entity registration take identity-keys, required-keys, optional-keys.
+
+  Change the logic for that.
+
+  We should optimise for simplicity, to reduce repitition.
+
+- Each using module, (like graphql), should have a set of functions at
+  the top that mimic the label, description, etc, ones but that look
+  for namespaced equivalent values first.
+
+  This should all be named consistently.
+
+- Rename GraphQL to lacinia module
+
+* Lacinia Module
+
+  - Should clean up the assoc-description stuff, it's a bit messy.
+
+  - Transforms should maybe always return [:key :^gql-object {}] for
+    consistency.
+
+    They can get turned into the correct maps later.
+
+  - What is it exactly that we are transforming for the GQL?
+
+    + Transform an enum
+      - sp/enum
+      - inline
+
+    + Transform a field
+
+    + Transform a query object
+
+    + Transform an input object
+
+  - What are the rules around question marks? and exclamation points?
+
+* Postgres Module
+
+  Need to have;
+
+  - Coercion of enums to types.
+  - What about namespaces?
+  - Simple functions for doing crud operations.
+  - how much can the jdbc.next take care of coercions just based on
+    types?
+  - Do we give it a policy for the coercions?  Like Metaliq?
