@@ -7,44 +7,63 @@
              [spectacular.core :as sp]
              [spectacular.utils :refer [nsk?]]))
 
+;;; --------------------------------------------------------------------------------
+;;  Naming convention, policy, will make it configurable later.
+
+(defn gql-type
+  [k options]
+  (or (::type options)               ; explicitly provided gql type
+      (sp/-get k ::type)             ; gql type registered with entity
+      ;;
+      ;; Or if we are an attribute then our scalar may have a special
+      ;; GQL type so check for that too, but otherwise use the
+      ;; scalar type and NOT the attribute-key as the type
+      (when (sp/attr? k)
+        (let [scalar-key (sp/-get k ::sp/scalar-key)]
+          (or (sp/-get scalar-key ::type)
+              scalar-key)))
+      ;;
+      ;; Failing all of that we just use the original k
+      k))
+
+(defn gql-name
+  [k {:keys [context kind]}]
+  (let [type-part    (csk/->PascalCaseString k)
+        kind-part    (case kind
+                       :token   "Token"
+                       :values  "Values"
+                       ;; :record
+                       "")
+        context-part (case context
+                       :input  "In"
+                       ;; :output
+                       "")]
+    (-> (str type-part kind-part context-part)
+        keyword)))
+
 ;;;
 
-(defn field-type
-  ([k]
-   ;; First try to get the GQL type registered for the k, this works
-   ;; for scalars, attributes and entities.
-   (-> (or (sp/-get k ::type)
-           ;;
-           ;; If we are an attribute then our scalar may have a special
-           ;; GQL type so check for that first, but otherwise use the
-           ;; scalar type and NOT the attribute-key as the type
-           (when (sp/attr? k)
-             (let [scalar-key (sp/-get k ::sp/scalar-key)]
-               (or (sp/-get scalar-key ::type)
-                   scalar-key)))
-           ;;
-           ;; Failing all of that we just use the original k
-           k)
-       csk/->PascalCaseKeyword))
-  ;;
-  ([m k & [{gql-type  ::type
-            required? :required?
-            :as options}]]
-   (if-let [val (or (some-> gql-type csk/->PascalCaseKeyword)
-                    (field-type k))]
-     (assoc m :type (if required?
-                      (list 'non-null val)
-                      val))
-     m)))
+(defn attr-type
+  ([k] (-> k
+           (gql-type nil)
+           (gql-name nil)))
 
-(defn field-description
+  ([m k & [{:keys [required?] :as options}]]
+   (let [gql (-> k
+                 (gql-type options)
+                 (gql-name options))]
+     (assoc m :type (if required?
+                      (list 'non-null gql)
+                      gql)))))
+
+(defn attr-description
   ([k]
    (or (sp/-get k ::description)
        (sp/-get k ::sp/description)))
   ;;
   ([m k & [{:keys [description] :as options}]]
    (if-let [val (or description
-                    (field-description k))]
+                    (attr-description k))]
      (assoc m :description val)
      m)))
 
@@ -54,7 +73,6 @@
   [k]
   (-> (or (sp/-get k ::type) k)
       csk/->PascalCaseKeyword))
-
 
 (defn -attr-type
   [k]
@@ -166,37 +184,37 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(defmulti field->schema (fn [field]
-                          (cond
-                            (sp/scalar? field) :sp-key
-                            (sp/attr?   field) :sp-key
-                            (sp/entity? field) :sp-key
-                            ;;
-                            (-> field :type sp/scalar?) :sp-map
-                            (-> field :type sp/attr?)   :sp-map
-                            (-> field :type sp/entity?) :sp-map
-                            ;;
-                            (map? field) :inline)))
+(defmulti attr->field (fn [attr]
+                        (cond
+                          (sp/scalar? attr) :sp-key
+                          (sp/attr?   attr) :sp-key
+                          (sp/entity? attr) :sp-key
+                          ;;
+                          (-> attr :type sp/scalar?) :sp-map
+                          (-> attr :type sp/attr?)   :sp-map
+                          (-> attr :type sp/entity?) :sp-map
+                          ;;
+                          (map? attr) :inline)))
 
-(defmethod field->schema :default
-  [field]
-  (throw (ex-info "Don't know how to transform field to schema."
-                  {:field field})))
+(defmethod attr->field :default
+  [attr]
+  (throw (ex-info "Don't know how to transform attr to schema."
+                  {:attr attr})))
 
-(defmethod field->schema :sp-key
+(defmethod attr->field :sp-key
   [k]
   (-> {}
-      (field-type        k)
-      (field-description k)))
+      (attr-type        k)
+      (attr-description k)))
 
-(defmethod field->schema :sp-map
+(defmethod attr->field :sp-map
   [{k     :type
     :keys [required? description] :as m}]
   (-> {}
-      (field-type        k m)
-      (field-description k m)))
+      (attr-type        k m)
+      (attr-description k m)))
 
-(defmethod field->schema :inline
+(defmethod attr->field :inline
   [{:keys [required? description] :as m}]
   (let [gql-type (-> m :type csk/->PascalCaseKeyword)]
     (cond-> nil

@@ -90,147 +90,114 @@
               ::lc/description "This has a resolver"
               ::lc/resolver    'dummy-function)
 
-(deftest transform-fields
-  (is (= (lc/field->schema :scalar/string)
+(deftest transform-attrs->fields
+  (is (= (lc/attr->field :scalar/string)
          {:type        :String
           :description "Non Blank String"}))
 
-  (is (= (lc/field->schema :scalar/string)
+  (is (= (lc/attr->field :scalar/string)
          {:type        :String
           :description "Non Blank String"}))
 
-  (is (= (lc/field->schema {:type        :scalar/string
-                            :description "Something Else"})
+  (is (= (lc/attr->field {:type        :scalar/string
+                          :description "Something Else"})
          {:type        :String
           :description "Something Else"}))
 
-  (is (= (lc/field->schema {:type        :scalar/string
-                            :description "Something Else"
-                            ;;
-                            ::lc/type   :strange-string})
+  (is (= (lc/attr->field {:type        :scalar/string
+                          :description "Something Else"
+                          ;;
+                          ::lc/type   :strange-string})
          {:type        :StrangeString
           :description "Something Else"}))
 
-  (is (= (lc/field->schema :ab/street)
+  (is (= (lc/attr->field :ab/street)
          {:type :String}))
 
-  (is (= (lc/field->schema {:type        :ab/street
-                            :description "Special Street"})
+  (is (= (lc/attr->field {:type        :ab/street
+                          :description "Special Street"})
          {:type        :String
           :description "Special Street"}))
 
-  (is (= (lc/field->schema {:type        :ab/street
-                            :required?   true
-                            :description "Special Street"})
+  (is (= (lc/attr->field {:type        :ab/street
+                          :required?   true
+                          :description "Special Street"})
          {:type        '(non-null :String)
           :description "Special Street"})))
 
 ;;; --------------------------------------------------------------------------------
 
-(sp/entity :ab/address
-           [:ab/street
-            :ab/state]
+(sp/entity :ab/address-1 [:ab/street :ab/state]
            ::sp/required-keys [:ab/state]
            ::sp/label         "Address"
            ::sp/description   "An Australian Address")
 
-(deftest transform-entities-1
-  (= (lc/transform-query-object :ab/address)
-     [:Address {:fields {:Street {:type 'String}
-                         :State  {:type 'AuState1}}
-                :description "An Australian Address"}])
+(deftest transform-entity-attrs->fields
+  (is (= (lc/attr->field :ab/address-1)
+         {:type        :Address1
+          :description "An Australian Address"}))
 
-  (= (lc/transform-input-object :ab/address)
-     [:Address {:fields {:Street {:type 'String}
-                         :State  {:type '(non-null AuState1)}}
-                :description "An Australian Address"}]))
-
-;;; --------------------------------------------------------------------------------
-
-;; Make this a more complex validator later, also have a different GQL
-;; type for it.
-(sp/scalar :scalar/e164 string?
-           ::lc/type :string)
-
-(sp/attribute :ab/contact-id  :scalar/integer)
-(sp/attribute :ab/given-name  :scalar/string)
-(sp/attribute :ab/family-name :scalar/string)
-(sp/attribute :ab/phone-no    :scalar/e164)
-
-(sp/attribute :ab/address-id  :scalar/integer)
-
-(sp/entity :ab/contact
-           [:ab/contact-id
-            :ab/given-name
-            :ab/family-name
-            :ab/phone-no]
-           ::sp/identity-keys [:ab/contact-id]
-           ::sp/required-keys [:ab/contact-id
-                               :ab/given-name
-                               :ab/phone-no])
-
-(sp/entity :ab/contact-address
-           [:ab/contact-id
-            :ab/address-id]
-           ::sp/identity-keys [:ab/contact-id :ab/address-id]
-           ::sp/required-keys [:ab/contact-id :ab/address-id])
-
-(deftest transform-query-arg
-
-  (is (= (lc/transform-query-arg :verbose? {:type :boolean})
-         {:isVerbose {:type 'Boolean}}))
-
-  (is (= (lc/transform-query-arg :verbose? {:type      :boolean
-                                             :required? true})
-         {:isVerbose {:type '(non-null Boolean)}}))
-
-  (is (= (lc/transform-query-arg :verbose? {:type      :boolean
-                                             :required? true
-                                             ;;
-                                             ::lc/key  :hasVerbosity})
-         {:hasVerbosity {:type '(non-null Boolean)}}))
-
-;;;
-
-  (is (= (lc/transform-query-arg :token {:type   :ab/contact
-                                          :token? true})
-         {:token {:type 'ContactToken}}))
-
-  (is (= (lc/transform-query-arg :token {:type      :ab/contact
-                                          :token?    true
-                                          :required? true})
-         {:token {:type '(non-null ContactToken)}}))
-
-  (is (= (lc/transform-query-arg :record {:type :ab/contact})
-         {:record {:type 'Contact}})))
+  (is (= (lc/attr->field {:type    :ab/address-1
+                          :kind    :token
+                          :context :input})
+         {:type        :Address1TokenIn
+          :description "An Australian Address"})))
 
 ;;; --------------------------------------------------------------------------------
 
-#_(
- (sp/attribute :test/user-id     :scalar/string)
- (sp/attribute :test/given-name  :scalar/string)
- (sp/attribute :test/family-name :scalar/string)
- (sp/attribute :test/dob         :scalar/ju-date)
- (sp/attribute :test/height      :scalar/integer)
- (sp/attribute :test/citizen?    :scalar/boolean)
+(sp/entity :ab/address-2 [:ab/street :ab/state]
+           ::lc/type          :address-two
+           ::sp/required-keys [:ab/state]
+           ::sp/label         "Address"
+           ::sp/description   "An Australian Address")
 
- (sp/entity :test/user
-            [:test/user-id
-             :test/given-name
-             :test/family-name
-             :test/dob
-             :test/height
-             :test/citizen?]
-            ::sp/identity-keys [:test/user-id]
-            ::sp/required-keys [:test/family-name])
+(deftest gql-names
+  (are [lhs rhs] (= lhs
+                    (-> (lc/attr-type nil
+                                      (:type rhs)
+                                      rhs)
+                        :type))
+    :AddressTokenIn {:type :ab/address :context :input  :kind :token}
+    :AddressToken   {:type :ab/address :context :output :kind :token}
+    ;;
+    :Address      {:type :ab/address}
+    :Address      {:type :ab/address :context :output :kind :record}
+    ;;
+    :AddressTwoToken    {:type :ab/address-2 :context :output :kind :token}
+    :AddressTwoTokenIn  {:type :ab/address-2 :context :input  :kind :token}
+    :AddressTwoValuesIn {:type :ab/address-2 :context :input  :kind :values}
+    :AddressTwoIn       {:type :ab/address-2 :context :input}))
 
- (sp/enum      :test/user-role-type [:one :two :three])
- (sp/attribute :test/user-role      :test/user-role-type)
+;;; --------------------------------------------------------------------------------
 
- (sp/entity :test/user-role
-            [:test/user-id
-             :test/user-role]
-            ::sp/identity-keys [:test/user-id :test/user-role]))
+(sp/attribute :test/user-id     :scalar/string)
+(sp/attribute :test/given-name  :scalar/string)
+(sp/attribute :test/family-name :scalar/string)
+(sp/attribute :test/dob         :scalar/ju-date)
+(sp/attribute :test/height      :scalar/integer)
+(sp/attribute :test/citizen?    :scalar/boolean)
+
+(sp/entity :test/user
+           [:test/user-id
+            :test/given-name
+            :test/family-name
+            :test/dob
+            :test/height
+            :test/citizen?]
+           ::sp/identity-keys [:test/user-id]
+           ::sp/required-keys [:test/family-name])
+
+(sp/enum      :test/user-role-type [:one :two :three])
+(sp/attribute :test/user-role      :test/user-role-type)
+
+(sp/entity :test/user-role
+           [:test/user-id
+            :test/user-role]
+           ::sp/identity-keys [:test/user-id :test/user-role])
+
+(deftest transform-entity-field
+
+  )
 
 #_
 (deftest transform-schema
