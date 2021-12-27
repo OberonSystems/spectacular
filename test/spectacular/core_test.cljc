@@ -83,4 +83,6 @@
     (is (= (sp/attribute-keys :ab/address) [:ab/unit-no
                                             :ab/street-no
                                             :ab/street
-                                            :ab/state]))))
+                                            :ab/state]))
+    (is (nil? (sp/identity-keys :ab/address)))
+    (is (= (sp/required-keys :ab/address) [:ab/state]))))

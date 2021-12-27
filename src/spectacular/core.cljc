@@ -1,7 +1,7 @@
 (ns spectacular.core
   (:require [clojure.pprint :refer [pprint]]
             [clojure.spec.alpha :as s]
-            [clojure.set :refer [subset? intersection difference]]
+            [clojure.set :refer [subset? intersection union difference]]
             ;;
             [spectacular.utils :refer [nsk? keyword->label]]))
 
@@ -32,6 +32,11 @@
 (defn scalar?
   [k]
   (= (-get k ::kind) ::scalar))
+
+(defn enum?
+  [k]
+  (and (scalar? k)
+       (-get k ::enum?)))
 
 (defn attr?
   [k]
@@ -67,7 +72,7 @@
 (defmacro enum
   [k values & {:as info}]
   (when (empty? values)
-    (ex-info "Cannot register an enum without values." {:scalar-key k :values values}))
+    (ex-info "Enums must have values." {:scalar-key k :values values}))
   (let [enums (set values)]
     `(do
        (s/def ~k ~enums)
@@ -77,52 +82,55 @@
 
 (defmacro attribute
   [k sk & {:as info}]
-  (when-not (exists? sk)
-    (throw (ex-info "Cannot register an attribute for unregistered scalar." {:attribute-key k :scalar-key sk})))
+  (when-not (scalar? sk)
+    (throw (ex-info "Attribute must be associated with a registered scalar." {:attribute-key k :scalar-key sk})))
   `(do
      (s/def ~k (s/get-spec ~sk))
      (-set ~k ::attribute (assoc ~info ::scalar-key ~sk))))
 
 (defmacro entity
-  [k attribute-keys & {:keys [::identity-keys ::required-keys] :as info}]
-  (let [attribute-set (set attribute-keys)
-        identity-set  (set identity-keys)
+  [k attribute-keys & {:keys [::identity-keys ::required-keys]
+                       :as info}]
+  (let [attribute-ks (some-> attribute-keys seq vec)
+        identity-ks  (some-> identity-keys  seq vec)
+        required-ks  (some-> required-keys  seq vec)
+        ;;
+        attribute-set (set attribute-ks)
+        identity-set  (set identity-ks)
         required-set  (set required-keys)
         ;;
-        optional-keys (difference attribute-set required-set)
-        ;;
-        ;; Reduce to non-empty vectors or nil for simplicity
-        [attribute-keys identity-keys required-keys optional-keys]
-        (map (fn [ks] (if (empty? ks) nil (vec ks)))
-             [attribute-keys identity-keys required-keys optional-keys])]
+        sp-required-ks (some-> (union      identity-set  required-set)   seq vec)
+        sp-optional-ks (some-> (difference attribute-set sp-required-ks) seq vec)]
     (when-let [[error info] (cond
-                              (empty? attribute-keys)
-                              ["You must provide attribute-keys."]
+                              (empty? attribute-ks)
+                              ["Cannot register and entity without attributes."]
 
-                              (not (every? nsk? attribute-keys))
-                              ["All attribute-keys must be namespaced keywords."]
+                              (not (every? nsk? attribute-ks))
+                              ["Cannot register an entity with invalid attributes; all attributes must be namespaced keywords."]
+
+                              (not (every? attr? attribute-ks))
+                              ["Cannot register an entity with unregistered attributes."
+                               {:unregistered (->> attribute-ks (remove attr?))}]
 
                               (not (subset? identity-set attribute-set))
-                              ["The identity-keys must be a subset of attribute-keys."]
+                              ["Identity Keys must be a subset of Attribute Keys"]
 
                               (not (subset? required-set attribute-set))
-                              ["The required-keys must be a subset of attribute-keys."]
+                              ["Required Keys must be a subset of Attribute Keys"]
 
-                              (not (every? attr? attribute-keys))
-                              ["Cannot register an entity with unregistered attributes."
-                               {:unregistered (->> attribute-keys (remove attr?))}])]
+                              (not (empty? (intersection identity-set required-set)))
+                              ["Identity Keys and Required Keys cannot intersect."])]
       (throw (ex-info error (merge {:k              k
                                     :attribute-keys attribute-keys
                                     :identity-keys  identity-keys
                                     :required-keys  required-keys}
                                    info))))
     `(do
-       (s/def ~k (s/keys :req ~required-keys :opt ~optional-keys))
+       (s/def ~k (s/keys :req ~sp-required-ks :opt ~sp-optional-ks))
        (-set  ~k ::entity (assoc ~info
-                                 ::attribute-keys ~attribute-keys
-                                 ::identity-keys  ~identity-keys
-                                 ::required-keys  ~required-keys
-                                 ::optional-keys  ~optional-keys)))))
+                                 ::attribute-keys ~attribute-ks
+                                 ::identity-keys  ~identity-ks
+                                 ::required-keys  ~required-ks)))))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -134,23 +142,6 @@
 (defn values
   [k]
   (-get k ::values))
-
-(defn -enum-values->label
-  [k f]
-  (let [f (or f keyword->label)]
-    (some->> (values k)
-             (map (fn [value]
-                    [value (f value)]))
-             seq
-             (into {}))))
-
-(defn labels
-  [k]
-  (-enum-values->label k (-get k ::labels)))
-
-(defn abbreviations
-  [k]
-  (-enum-values->label k (-get k ::abbrevs)))
 
 (defn scalar-key
   [k]
@@ -171,3 +162,23 @@
 (defn required-keys
   [k]
   (-get k ::required-keys))
+
+;;; --------------------------------------------------------------------------------
+;;; Enum specific helpers
+
+(defn -enum-values->label
+  [k f]
+  (let [f (or f keyword->label)]
+    (some->> (values k)
+             (map (fn [value]
+                    [value (f value)]))
+             seq
+             (into {}))))
+
+(defn labels
+  [k]
+  (-enum-values->label k (-get k ::labels)))
+
+(defn abbreviations
+  [k]
+  (-enum-values->label k (-get k ::abbrevs)))
