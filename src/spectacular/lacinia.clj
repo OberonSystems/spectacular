@@ -10,7 +10,7 @@
 ;;; --------------------------------------------------------------------------------
 ;;  Naming convention, policy, will make it configurable later.
 
-(defn gql-type
+(defn gql-type-key
   [k options]
   (or (::type options)               ; explicitly provided gql type
       (sp/-get k ::type)             ; gql type registered with entity
@@ -26,7 +26,7 @@
       ;; Failing all of that we just use the original k
       k))
 
-(defn gql-name
+(defn gql-type-name
   [k {:keys [context kind]}]
   (let [type-part    (csk/->PascalCaseString k)
         kind-part    (case kind
@@ -45,13 +45,13 @@
 
 (defn attr-type
   ([k] (-> k
-           (gql-type nil)
-           (gql-name nil)))
+           (gql-type-key nil)
+           (gql-type-name nil)))
 
   ([m k & [{:keys [required?] :as options}]]
    (let [gql (-> k
-                 (gql-type options)
-                 (gql-name options))]
+                 (gql-type-key options)
+                 (gql-type-name options))]
      (assoc m :type (if required?
                       (list 'non-null gql)
                       gql)))))
