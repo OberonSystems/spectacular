@@ -195,7 +195,23 @@
             :test/user-role]
            ::sp/identity-keys [:test/user-id :test/user-role])
 
-(deftest transform-entity-field
+(deftest output-object-transformations
+  (is (= (lc/entity->output :test/user)
+         {:userId     {:type :String}
+          :givenName  {:type :String}
+          :familyName {:type :String}
+          :dob        {:type :JuDate}
+          :height     {:type :Integer}
+          :isCitizen  {:type :Boolean}}))
+
+  (is (= (lc/entity->output :test/user-role)
+         {:userId   {:type :String}
+          :userRole {:type :UserRole}})))
+
+(deftest query-transformations
+  (lc/transform-query {:type [:ab/user]
+                       :args {:name-like {:type :string}
+                              :tags      {:type [:string]}}})
 
   )
 
