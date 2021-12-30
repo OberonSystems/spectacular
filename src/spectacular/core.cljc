@@ -19,11 +19,12 @@
   k)
 
 (defn -get
-  ([& ks]
-   (let [[k & ks :as params] (flatten ks)]
-     (cond
-       (nil? ks) (get    @+registry+ k)
-       :else     (get-in @+registry+ params)))))
+  ([k]
+   (get @+registry+ k))
+
+  ([k & ks]
+   (when-let [v (-get k)]
+     (get-in v ks))))
 
 (defn exists?
   [k]
