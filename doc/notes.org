@@ -26,6 +26,12 @@ Can we have optionally loaded modules?
 
 - Rename GraphQL to lacinia module
 
+- Make sure the has? and is? flags work for booleans.
+
+- Need to think about the :type of the attr object that gets used in
+  the attr->field.  It's a bit of a blend of a scalar/attribute and
+  gql-key, should it be called info?
+
 * Lacinia Module
 
   - Should clean up the assoc-description stuff, it's a bit messy.
