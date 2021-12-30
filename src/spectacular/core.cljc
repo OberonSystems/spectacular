@@ -100,6 +100,8 @@
         identity-set  (set identity-ks)
         required-set  (set required-keys)
         ;;
+        value-ks (some->> attribute-ks (remove identity-set) seq vec)
+        ;;
         sp-required-ks (some-> (union      identity-set  required-set)   seq vec)
         sp-optional-ks (some-> (difference attribute-set sp-required-ks) seq vec)]
     (when-let [[error info] (cond
@@ -131,7 +133,8 @@
        (-set  ~k ::entity (assoc ~info
                                  ::attribute-keys ~attribute-ks
                                  ::identity-keys  ~identity-ks
-                                 ::required-keys  ~required-ks)))))
+                                 ::required-keys  ~required-ks
+                                 ::value-keys     ~value-ks)))))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -163,6 +166,10 @@
 (defn required-keys
   [k]
   (-get k ::required-keys))
+
+(defn value-keys
+  [k]
+  (-get k ::value-keys))
 
 ;;; --------------------------------------------------------------------------------
 ;;; Enum specific helpers
