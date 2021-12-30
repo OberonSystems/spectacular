@@ -1,11 +1,12 @@
 (ns spectacular.lacinia
-   (:require [clojure.string :as s]
-             ;;
-             [camel-snake-kebab.core :as csk]
-             [camel-snake-kebab.extras :as cske]
-             ;;
-             [spectacular.core :as sp]
-             [spectacular.utils :refer [nsk?]]))
+  (:require [clojure.string :as s]
+            [clojure.set :refer [union]]
+            ;;
+            [camel-snake-kebab.core :as csk]
+            [camel-snake-kebab.extras :as cske]
+            ;;
+            [spectacular.core :as sp]
+            [spectacular.utils :refer [nsk?]]))
 
 ;;; --------------------------------------------------------------------------------
 ;;  Naming convention, policy, will make it configurable later.
@@ -188,30 +189,81 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(defmulti entity->output-object (fn [entity]
-                                  (cond
-                                    (sp/entity? entity)          :key
-                                    (-> entity :type sp/entity?) :map
-                                    ;;
-                                    (map? entity) :inline)))
+(defmulti entity->output (fn [entity]
+                           (cond
+                             (sp/entity? entity)          :key
+                             ;;
+                             (map? entity) :inline)))
 
-(defmethod entity->output-object :default
+(defmethod entity->output :default
   [entity]
   (throw (ex-info "Don't know how to transform entity to output oject."
                   {:entity entity})))
 
-(defmethod entity->output-object :key
+(defmethod entity->output :key
   [k]
   (->> (sp/attribute-keys k)
        (map (fn [k]
               [(gql-field-name k nil) (attr->field k)]))
        (into {})))
 
-(defmethod entity->output-object :map
-  [info])
+(defmethod entity->output :inline
+  [m]
+  (->> m
+       (map (fn [[k v]]
+              [(gql-field-name k nil) (attr->field v)]))
+       (into {})))
 
-(defmethod entity->output-object :inline
-  [m])
+;;; --------------------------------------------------------------------------------
+
+(defn get-entity-attributes
+  [entity-key {:keys [token? values?]}]
+  (let [required? (union (-> entity-key sp/identity-keys set)
+                         (-> entity-key sp/required-keys set))]
+    (->> (cond
+           token?  (sp/identity-keys  entity-key)
+           values? (sp/value-keys     entity-key)
+           :else   (sp/attribute-keys entity-key))
+         (mapv (fn [attr-key]
+                 (-> (sp/get-attribute attr-key)
+                     (assoc :type      attr-key
+                            :required? (required? attr-key))))))))
+
+(defmulti entity->input (fn [entity]
+                          (cond
+                            (sp/entity? entity)          :key
+                            (-> entity :type sp/entity?) :map
+                            ;;
+                            (map? entity) :inline)))
+
+(defmethod entity->input :default
+  [entity]
+  (throw (ex-info "Don't know how to transform entity to input oject."
+                  {:entity entity})))
+
+(defmethod entity->input :key
+  [k]
+  (->> (get-entity-attributes k nil)
+       (map (fn [{k :type :as attr}]
+              [(gql-field-name k nil)
+               (attr->field    attr)]))
+       (into {})))
+
+(defmethod entity->input :map
+  [{k     :type
+    :as   m}]
+  (->> (get-entity-attributes k m)
+       (map (fn [{k :type :as attr}]
+              [(gql-field-name k nil)
+               (attr->field    attr)]))
+       (into {})))
+
+(defmethod entity->input :inline
+  [m]
+  (->> m
+       (map (fn [[k v]]
+              [(gql-field-name k nil) (attr->field v)]))
+       (into {})))
 
 ;;; --------------------------------------------------------------------------------
 

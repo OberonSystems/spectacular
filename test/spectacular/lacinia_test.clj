@@ -201,7 +201,7 @@
            ::sp/identity-keys [:test/user-id :test/user-role])
 
 (deftest output-object-transformations
-  (is (= (lc/entity->output :test/user)
+  (is (= (lc/entity->output-object :test/user)
          {:userId     {:type :String}
           :givenName  {:type :String}
           :familyName {:type :String}
@@ -209,11 +209,52 @@
           :height     {:type :Integer}
           :isCitizen  {:type :Boolean}}))
 
-  (is (= (lc/entity->output :test/user-role)
+  (is (= (lc/entity->output-object :test/user-role)
          {:userId   {:type :String}
-          :userRole {:type :UserRole}})))
+          :userRole {:type :UserRole}}))
+
+  (is (= (lc/entity->output-object {:test-id :scalar/string
+                                    :age     :scalar/integer
+                                    :uuid    :scalar/string})
+         {:testId {:type :String, :description "Non Blank String"}
+          :age    {:type :Integer}
+          :uuid   {:type :String :description "Non Blank String"}}))
+
+  ;; Want to be able to handle optinos like;
+  #_(lc/entity->output-object {:test-id {:lc/type :gql-integer}}))
+
+(deftest input-object-transformations
+  (is (= (lc/entity->input :test/user)
+         {:userId     {:type '(non-null :String)}
+          :givenName  {:type :String}
+          :familyName {:type '(non-null :String)}
+          :dob        {:type :JuDate}
+          :height     {:type :Integer}
+          :isCitizen  {:type :Boolean}}))
+
+  (is (= (lc/entity->input {:type :test/user :token? true})
+         {:userId {:type '(non-null :String)}}))
+
+  (is (= (lc/entity->input {:type :test/user :values? true})
+         {:givenName  {:type :String},
+          :familyName {:type '(non-null :String)},
+          :dob        {:type :JuDate},
+          :height     {:type :Integer},
+          :isCitizen  {:type :Boolean}}))
+
+  (is (= (lc/entity->input {:givenName  {:type :string}
+                            :familyName {:type :string :required? true}
+                            :dob        {:type :ju-date}
+                            :height     {:type :integer}
+                            :citizen?   {:type :boolean}})
+         {:givenName  {:type :String}
+          :familyName {:type '(non-null :String)}
+          :dob        {:type :JuDate}
+          :height     {:type :Integer}
+          :isCitizen  {:type :Boolean}})))
 
 (deftest query-transformations
+  #_
   (lc/transform-query {:type [:ab/user]
                        :args {:name-like {:type :string}
                               :tags      {:type [:string]}}})
