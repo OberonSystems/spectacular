@@ -123,7 +123,12 @@
                           :required?   true
                           :description "Special Street"})
          {:type        '(non-null :String)
-          :description "Special Street"})))
+          :description "Special Street"}))
+  ;;
+  ;; Handling lists
+  (is (= (lc/attr->field [:scalar/string])
+         {:type        '(list (non-null :String))
+          :description "Non Blank String"})))
 
 ;;; --------------------------------------------------------------------------------
 

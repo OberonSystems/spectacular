@@ -61,13 +61,13 @@
            (gql-type-key nil)
            (gql-type-name nil)))
 
-  ([m k & [{:keys [required?] :as options}]]
+  ([m k & [{:keys [many? required?] :as options}]]
    (let [gql (-> k
-                 (gql-type-key options)
+                 (gql-type-key  options)
                  (gql-type-name options))]
-     (assoc m :type (if required?
-                      (list 'non-null gql)
-                      gql)))))
+     (assoc m :type (cond->> gql
+                      required? (list 'non-null)
+                      many?     (list 'list))))))
 
 (defn attr-description
   ([k]
@@ -117,37 +117,60 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(defmulti attr->field (fn [attr]
-                        (cond
-                          (sp/scalar? attr) :sp-key
-                          (sp/attr?   attr) :sp-key
-                          (sp/entity? attr) :sp-key
-                          ;;
-                          (-> attr :type sp/scalar?) :sp-map
-                          (-> attr :type sp/attr?)   :sp-map
-                          (-> attr :type sp/entity?) :sp-map
-                          ;;
-                          (map? attr) :inline)))
+(defn -attr->field
+  [attr]
+  (let [[arity attr] (if (and (vector? attr)
+                              (-> attr count (= 1)))
+                       [:many (first attr)]
+                       [:one  attr])
+        ;;
+        kind (cond
+               (sp/scalar? attr) :key
+               (sp/attr?   attr) :key
+               (sp/entity? attr) :key
+               ;;
+               (-> attr :type sp/scalar?) :map
+               (-> attr :type sp/attr?)   :map
+               (-> attr :type sp/entity?) :map
+               ;;
+               (map? attr) :inline)]
+    (when kind [arity kind])))
+
+(def attr->field nil)
+(defmulti attr->field -attr->field)
 
 (defmethod attr->field :default
   [attr]
   (throw (ex-info "Don't know how to transform attr to schema."
                   {:attr attr})))
 
-(defmethod attr->field :sp-key
+(defmethod attr->field [:one :key]
   [k]
   (-> {}
       (attr-type        k)
       (attr-description k)))
 
-(defmethod attr->field :sp-map
+(defmethod attr->field [:many :key]
+  [[k]]
+  (attr->field {:type      k
+                :required? true
+                :many?     true}))
+
+(defmethod attr->field [:one :map]
   [{k     :type
     :keys [required? description] :as m}]
   (-> {}
       (attr-type        k m)
       (attr-description k m)))
 
-(defmethod attr->field :inline
+(defmethod attr->field [:many :map]
+  [[attr]]
+  (-> attr
+      (assoc :required? true
+             :many?     true)
+      attr->field))
+
+(defmethod attr->field [:one :inline]
   [{:keys [required? description] :as m}]
   (let [gql-type (-> m :type csk/->PascalCaseKeyword)]
     (cond-> nil
@@ -156,14 +179,21 @@
                                  gql-type))
       description (assoc :description description))))
 
+(defmethod attr->field [:many :inline]
+  [[m]]
+  (-> m
+      (assoc :required? true
+             :many?     true)
+      attr->field))
+
 ;;; --------------------------------------------------------------------------------
 
 (defmulti entity->output-object (fn [entity]
-                           (cond
-                             (sp/entity? entity)          :key
-                             (-> entity :type sp/entity?) :map
-                             ;;
-                             (map? entity) :inline)))
+                                  (cond
+                                    (sp/entity? entity)          :key
+                                    (-> entity :type sp/entity?) :map
+                                    ;;
+                                    (map? entity) :inline)))
 
 (defmethod entity->output-object :default
   [entity]
