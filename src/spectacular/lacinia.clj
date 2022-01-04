@@ -57,18 +57,22 @@
 
 ;;;
 
+(defn listify
+  [gql-type {:keys [many? required?]}]
+  (cond->> gql-type
+    (or many? required?) (list 'non-null)
+    many?                (list 'list)))
+
 (defn attr-type
   ([k] (-> k
-           (gql-type-key nil)
+           (gql-type-key  nil)
            (gql-type-name nil)))
 
-  ([m k & [{:keys [many? required?] :as options}]]
-   (let [gql (-> k
-                 (gql-type-key  options)
-                 (gql-type-name options))]
-     (assoc m :type (cond->> gql
-                      required? (list 'non-null)
-                      many?     (list 'list))))))
+  ([m k & [options]]
+   (let [gql-type (-> k
+                      (gql-type-key  options)
+                      (gql-type-name options))]
+     (assoc m :type (listify gql-type options)))))
 
 (defn attr-description
   ([k]
@@ -118,74 +122,50 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(defn -attr->field
+(defn canonicalise-attr
   [attr]
-  (let [[arity attr] (if (and (vector? attr)
-                              (-> attr count (= 1)))
-                       [:many (first attr)]
-                       [:one  attr])
-        ;;
-        kind (cond
-               (sp/scalar? attr) :key
-               (sp/attr?   attr) :key
-               (sp/entity? attr) :key
-               ;;
-               (-> attr :type sp/scalar?) :map
-               (-> attr :type sp/attr?)   :map
-               (-> attr :type sp/entity?) :map
-               ;;
-               (map? attr) :inline)]
-    (when kind [arity kind])))
+  (cond
+    ;; :keyword
+    (keyword? attr) {:type attr}
 
-(def attr->field nil)
-(defmulti attr->field -attr->field)
+    ;; [:keyword]
+    (and (vector? attr)
+         (-> attr count (= 1))
+         (-> attr first keyword?))
+    {:type  (-> attr first)
+     :many? true}
 
-(defmethod attr->field :default
+    ;; {:type :keyword}
+    (and (map? attr)
+         (-> attr :type keyword?))
+    attr
+
+    ;; {:type [:keyword]}
+    (and (map? attr)
+         (-> attr :type vector?)
+         (-> attr :type count (= 1)))
+    (assoc attr
+           :type  (-> attr :type first)
+           :many? true)
+
+    :else (throw (ex-info "Invalid Attribute"
+                          {:attr attr}))))
+
+(defn attr->field
   [attr]
-  (throw (ex-info "Don't know how to transform attr to schema."
-                  {:attr attr})))
-
-(defmethod attr->field [:one :key]
-  [k]
-  (-> {}
-      (attr-type        k)
-      (attr-description k)))
-
-(defmethod attr->field [:many :key]
-  [[k]]
-  (attr->field {:type      k
-                :required? true
-                :many?     true}))
-
-(defmethod attr->field [:one :map]
-  [{k     :type
-    :keys [required? description] :as m}]
-  (-> {}
-      (attr-type        k m)
-      (attr-description k m)))
-
-(defmethod attr->field [:many :map]
-  [[attr]]
-  (-> attr
-      (assoc :required? true
-             :many?     true)
-      attr->field))
-
-(defmethod attr->field [:one :inline]
-  [{:keys [required? description] :as m}]
-  (let [gql-type (-> m :type csk/->PascalCaseKeyword)]
-    (cond-> nil
-      gql-type    (assoc :type (if required?
-                                 (list 'non-null gql-type)
-                                 gql-type))
+  (let [{k     :type
+         :keys [resolver description]
+         :as attr} (canonicalise-attr attr)]
+    (cond-> (cond
+              (sp/exists? k)
+              (-> {}
+                  (attr-type        k attr)
+                  (attr-description k attr))
+              ;;
+              :else {:type (-> k csk/->PascalCaseKeyword (listify attr))})
+      ;;
+      resolver    (assoc :resolver    resolver)
       description (assoc :description description))))
-
-(defmethod attr->field [:many :inline]
-  [[m]]
-  (-> m
-      (assoc :required? true
-             :many?     true)
-      attr->field))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -268,9 +248,10 @@
 ;;; --------------------------------------------------------------------------------
 
 (defn transform-query
-  [{:keys [type args]}]
-  {:type {:blah :blah}
-   :args (->> args
+  [query]
+  {:type (->> query :type attr->field)
+   :args (->> query
+              :args
               (map (fn [[k v]]
                      [(gql-field-name k v)
                       (attr->field v)]))

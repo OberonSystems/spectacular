@@ -126,7 +126,7 @@
           :description "Special Street"}))
   ;;
   ;; Handling lists
-  (is (= (lc/attr->field [:scalar/string])
+  (is (= (lc/attr->field {:type [:scalar/string]})
          {:type        '(list (non-null :String))
           :description "Non Blank String"})))
 
@@ -201,7 +201,7 @@
            ::sp/identity-keys [:test/user-id :test/user-role])
 
 (deftest output-object-transformations
-  (is (= (lc/entity->output-object :test/user)
+  (is (= (lc/entity->output :test/user)
          {:userId     {:type :String}
           :givenName  {:type :String}
           :familyName {:type :String}
@@ -209,18 +209,32 @@
           :height     {:type :Integer}
           :isCitizen  {:type :Boolean}}))
 
-  (is (= (lc/entity->output-object :test/user-role)
+  (is (= (lc/entity->output :test/user-role)
          {:userId   {:type :String}
           :userRole {:type :UserRole}}))
 
-  (is (= (lc/entity->output-object {:test-id :scalar/string
-                                    :age     :scalar/integer
-                                    :uuid    :scalar/string})
+  (is (= (lc/entity->output {:test-id :scalar/string
+                             :age     :scalar/integer
+                             :uuid    :scalar/string})
          {:testId {:type :String, :description "Non Blank String"}
           :age    {:type :Integer}
           :uuid   {:type :String :description "Non Blank String"}}))
 
-  ;; Want to be able to handle optinos like;
+
+  (is (= (lc/entity->output {:test-id :scalar/string
+                             :age     :scalar/integer
+                             :uuid    {:type     :scalar/string
+                                       :resolver 'test-uuid-resolver}})
+         {:testId {:type :String, :description "Non Blank String"}
+          :age    {:type :Integer}
+          :uuid   {:type        :String
+                   :description "Non Blank String"
+                   :resolver    'test-uuid-resolver}}))
+
+  (is (= (lc/entity->output {:type :test/user})
+         ))
+
+  ;; Want to be able to handle options like;
   #_(lc/entity->output-object {:test-id {:lc/type :gql-integer}}))
 
 (deftest input-object-transformations
@@ -254,12 +268,12 @@
           :isCitizen  {:type :Boolean}})))
 
 (deftest query-transformations
-  #_
-  (lc/transform-query {:type [:ab/user]
-                       :args {:name-like {:type :string}
-                              :tags      {:type [:string]}}})
-
-  )
+  (is (= (lc/transform-query {:type [:ab/user]
+                              :args {:name-like {:type :string}
+                                     :tags      [:string]}})
+         '{:type {:type (list (non-null :User))}
+           :args {:nameLike {:type :String}
+                  :tags     {:type (list (non-null :String))}}})))
 
 #_
 (deftest transform-schema
