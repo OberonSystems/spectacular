@@ -42,19 +42,6 @@
     (-> (str type-part kind-part context-part)
         keyword)))
 
-(defn gql-field-name
-  [k {:keys [::is? ::has?]}]
-  (let [k-name (name k)]
-    (-> (if (s/ends-with? k-name "?")
-          (str (cond
-                 has? "has"
-                 :else "is")
-               (-> k-name
-                   (s/replace #"\?" "")
-                   csk/->PascalCaseString))
-          (csk/->camelCaseString k))
-        keyword)))
-
 ;;;
 
 (defn listify
@@ -63,7 +50,7 @@
     (or many? required?) (list 'non-null)
     many?                (list 'list)))
 
-(defn attr-type
+(defn field-type
   ([k] (-> k
            (gql-type-key  nil)
            (gql-type-name nil)))
@@ -74,185 +61,177 @@
                       (gql-type-name options))]
      (assoc m :type (listify gql-type options)))))
 
-(defn attr-description
+(defn field-description
   ([k]
    (or (sp/-get k ::description)
        (sp/-get k ::sp/description)))
   ;;
   ([m k & [{:keys [description] :as options}]]
    (if-let [val (or description
-                    (attr-description k))]
+                    (field-description k))]
      (assoc m :description val)
      m)))
 
-;;; -- Enums
+;;;
 
-(defmulti enum->schema (fn [enum]
-                           (cond
-                             (sp/enum? enum) :enum-key
-                             (map?     enum) :inline)))
+(defn canonicalise-ref
+  [ref]
+  (let [{ref-type :type :as ref}
+        (cond
+          ;; :keyword
+          (keyword? ref) {:type ref}
 
-(defmethod enum->schema :default
-  [enum]
-  (throw (ex-info "Don't know how to info to enum."
-                  {:enum enum})))
+          ;; [:keyword]
+          (and (vector? ref)
+               (-> ref count (= 1))
+               (-> ref first keyword?))
+          {:type  (-> ref first)
+           :many? true}
 
-(defmethod enum->schema :enum-key
-  [k]
-  (if-let [values (sp/values k)]
-    ;; Enums are scalars so they have a type which maybe overridden on
-    ;; the GQL side.  In the schema the type is in what we would
-    ;; normally consider the 'key' position, so check for the GQL type
-    ;; translation rather than a key translation.
-    [(-> k
-         (gql-type-key  nil)
-         (gql-type-name nil))
-     (-> {:values (mapv csk/->SCREAMING_SNAKE_CASE_KEYWORD values)}
+          ;; {:type :keyword}
+          (and (map? ref)
+               (-> ref :type keyword?))
+          ref
 
-         (attr-description k))]
-    ;; Do I need this warning?  Doesn't spec ensure I can't do this?
-    (throw (ex-info "Can't transform to an enum, key doesn't have any values."
-                    {:enum-key k}))))
+          ;; {:type [:keyword]}
+          (and (map? ref)
+               (-> ref :type vector?)
+               (-> ref :type count (= 1)))
+          (assoc ref
+                 :type  (-> ref :type first)
+                 :many? true)
 
-(defmethod enum->schema :inline
-  [{:keys [key values description]}]
-  [(csk/->PascalCaseKeyword key)
-   (cond-> {:values (mapv csk/->SCREAMING_SNAKE_CASE_KEYWORD values)}
-     description (assoc :description description))])
+          :else (throw (ex-info "Invalid reference"
+                                {:ref ref})))]
+    (when-not (or (-> ref-type sp/exists?)
+                  (-> ref-type namespace nil?))
+      (throw (ex-info "Invalid reference type; ref-type must be a register spectacular keyword or an unnamespaced keyword."
+                      {:ref-type ref-type
+                       :ref      ref})))
+    ref))
 
-;;; --------------------------------------------------------------------------------
-
-(defn canonicalise-attr
-  [attr]
-  (cond
-    ;; :keyword
-    (keyword? attr) {:type attr}
-
-    ;; [:keyword]
-    (and (vector? attr)
-         (-> attr count (= 1))
-         (-> attr first keyword?))
-    {:type  (-> attr first)
-     :many? true}
-
-    ;; {:type :keyword}
-    (and (map? attr)
-         (-> attr :type keyword?))
-    attr
-
-    ;; {:type [:keyword]}
-    (and (map? attr)
-         (-> attr :type vector?)
-         (-> attr :type count (= 1)))
-    (assoc attr
-           :type  (-> attr :type first)
-           :many? true)
-
-    :else (throw (ex-info "Invalid Attribute"
-                          {:attr attr}))))
-
-(defn attr->field
-  [attr]
-  (let [{k     :type
-         :keys [resolver description]
-         :as attr} (canonicalise-attr attr)]
-    (cond-> (cond
-              (sp/exists? k)
-              (-> {}
-                  (attr-type        k attr)
-                  (attr-description k attr))
-              ;;
-              :else {:type (-> k csk/->PascalCaseKeyword (listify attr))})
-      ;;
+(defn ref->field
+  [ref & [{:keys [required?]}]]
+  (let [{ref-type :type
+         :keys    [resolver description]
+         :as      ref}
+        (merge (canonicalise-ref ref)
+               ;;
+               ;; Explicitly overridden to be required, or required?
+               ;; has been provided as part of the original ref map.
+               ;;
+               ;; We need to do it here so that the field-type knows
+               ;; to make it (non-null ...).
+               (when (or required? (:required? ref))
+                 {:required? true}))
+        ;;
+        field (cond
+                (sp/exists? ref-type)
+                (-> {}
+                    (field-type        ref-type ref)
+                    (field-description ref-type ref))
+                ;;
+                :else {:type (listify (csk/->PascalCaseKeyword ref-type)
+                                      ref)})]
+    (cond-> field
       resolver    (assoc :resolver    resolver)
       description (assoc :description description))))
 
 ;;; --------------------------------------------------------------------------------
 
-(defmulti entity->output (fn [entity]
-                           (cond
-                             (sp/entity? entity)          :key
-                             ;;
-                             (map? entity) :inline)))
+(defn ref->field-name
+  [k {:keys [has?]}]
+  ;; FIXME: need to cater for gql-type on the options that overrides
+  ;; the coercion to
+  (let [k-name (name k)]
+    (-> (if (s/ends-with? k-name "?")
+          (str (if has? "has" "is")
+               (-> k-name
+                   (s/replace #"\?" "")
+                   csk/->PascalCaseString))
+          (csk/->camelCaseString k))
+        keyword)))
 
-(defmethod entity->output :default
-  [entity]
-  (throw (ex-info "Don't know how to transform entity to output oject."
-                  {:entity entity})))
+(defn canonicalise-enum
+  [enum]
+  (let [enum (cond
+               (sp/enum? enum)
+               (-> {:type   enum
+                    :values (sp/values enum)}
+                   (field-description enum))
+               ;;
+               (map? enum) enum
+               ;;
+               :else (throw (ex-info "Invalid enum; must be (sp/enum? key) or map." {:enum enum})))]
+    (when-not (and (:type   enum)
+                   (:values enum))
+      (throw (ex-info "Invalid enum; must contain :type and :values." {:enum enum})))
+    enum))
 
-(defmethod entity->output :key
-  [k]
-  (->> (sp/attribute-keys k)
-       (map (fn [k]
-              [(gql-field-name k nil) (attr->field k)]))
-       (into {})))
+(defn enum->enum
+  [enum]
+  (let [{enum-type :type
+         :keys     [values description]
+         :as       enum} (canonicalise-enum enum)]
 
-(defmethod entity->output :inline
-  [m]
-  (->> m
-       (map (fn [[k v]]
-              [(gql-field-name k nil) (attr->field v)]))
-       (into {})))
+    [(if (sp/enum? enum-type)
+       (-> enum-type (gql-type-key  nil) (gql-type-name nil))
+       (csk/->PascalCaseKeyword enum-type))
+     ;;
+     (-> (select-keys enum [:description])
+         (assoc :values (mapv csk/->SCREAMING_SNAKE_CASE_KEYWORD values)))]))
 
 ;;; --------------------------------------------------------------------------------
 
-(defn get-entity-attributes
+(defn get-entity-attribute-keys
   [entity-key {:keys [token? values?]}]
-  (let [required? (union (-> entity-key sp/identity-keys set)
-                         (-> entity-key sp/required-keys set))]
-    (->> (cond
-           token?  (sp/identity-keys  entity-key)
-           values? (sp/value-keys     entity-key)
-           :else   (sp/attribute-keys entity-key))
-         (mapv (fn [attr-key]
-                 (-> (sp/get-attribute attr-key)
-                     (assoc :type      attr-key
-                            :required? (required? attr-key))))))))
+  (cond
+    token?  (sp/identity-keys  entity-key)
+    values? (sp/value-keys     entity-key)
+    :else   (sp/attribute-keys entity-key)))
 
-(defmulti entity->input (fn [entity]
-                          (cond
-                            (sp/entity? entity)          :key
-                            (-> entity :type sp/entity?) :map
-                            ;;
-                            (map? entity) :inline)))
+(defn entity->output-fields
+  [entity & [options]]
+  (let [fields (cond
+                 (sp/entity? entity)
+                 (map (fn [k] [(ref->field-name k nil) (ref->field k)])
+                      (get-entity-attribute-keys entity options))
 
-(defmethod entity->input :default
-  [entity]
-  (throw (ex-info "Don't know how to transform entity to input oject."
-                  {:entity entity})))
+                 (map? entity)
+                 (map (fn [[k v]] [(ref->field-name k nil) (ref->field v)])
+                      entity))]
+    (when (empty? fields)
+      (throw (ex-info "Invalid entity; must be (sp/entity? entity) or be a map of fields." {:entity entity})))
+    (into {} fields)))
 
-(defmethod entity->input :key
-  [k]
-  (->> (get-entity-attributes k nil)
-       (map (fn [{k :type :as attr}]
-              [(gql-field-name k nil)
-               (attr->field    attr)]))
-       (into {})))
+(defn entity->input-fields
+  [entity & [options]]
+  (let [fields (cond
+                 (sp/entity? entity)
+                 (let [required? (union (-> entity sp/identity-keys set)
+                                        (-> entity sp/required-keys set))]
+                   (map (fn [k] [(ref->field-name k nil) (ref->field k {:required? (required? k)})])
+                        (get-entity-attribute-keys entity options)))
 
-(defmethod entity->input :map
-  [{k     :type
-    :as   m}]
-  (->> (get-entity-attributes k m)
-       (map (fn [{k :type :as attr}]
-              [(gql-field-name k nil)
-               (attr->field    attr)]))
-       (into {})))
-
-(defmethod entity->input :inline
-  [m]
-  (->> m
-       (map (fn [[k v]]
-              [(gql-field-name k nil) (attr->field v)]))
-       (into {})))
+                 (map? entity)
+                 (map (fn [[k v]] [(ref->field-name k nil) (ref->field v v)])
+                      entity))]
+    (when (empty? fields)
+      (throw (ex-info "Invalid entity; must be (sp/entity? entity) or be a map of fields." {:entity entity})))
+    (into {} fields)))
 
 ;;; --------------------------------------------------------------------------------
 
-(defn transform-query
-  [query]
-  {:type (->> query :type attr->field)
-   :args (->> query
-              :args
-              (map (fn [[k v]]
-                     [(gql-field-name k v)
-                      (attr->field v)]))
-              (into {}))})
+(defn endpoint->gql
+  "Can be either a mutation or query."
+  [{return-type :type
+    :keys       [args description resolver]
+    :as         endpoint}]
+  (cond-> (ref->field return-type)
+    args        (assoc :args        (->> args
+                                         (map (fn [[k v]]
+                                                [(ref->field-name k v)
+                                                 (ref->field      v v)]))
+                                         (into {})))
+    description (assoc :description description)
+    resolver    (assoc :resolver    resolver)))

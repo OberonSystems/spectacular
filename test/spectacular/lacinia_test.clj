@@ -14,7 +14,103 @@
 (sp/scalar :scalar/string  string? ::sp/description "Non Blank String")
 (sp/scalar :scalar/boolean boolean?)
 (sp/scalar :scalar/integer integer?)
-(sp/scalar :scalar/ju-date java-util-date?)
+(sp/scalar :scalar/ju-date java-util-date? ::sp/description "Java Date")
+
+;;; --------------------------------------------------------------------------------
+
+(sp/attribute :test/user-id     :scalar/string)
+(sp/attribute :test/given-name  :scalar/string)
+(sp/attribute :test/family-name :scalar/string)
+(sp/attribute :test/dob         :scalar/ju-date)
+(sp/attribute :test/height      :scalar/integer)
+(sp/attribute :test/citizen?    :scalar/boolean)
+
+(sp/entity :test/user
+           [:test/user-id
+            :test/given-name
+            :test/family-name
+            :test/dob
+            :test/height
+            :test/citizen?]
+           ::sp/identity-keys [:test/user-id]
+           ::sp/required-keys [:test/family-name])
+
+(sp/enum      :test/user-role-type [:one :two :three])
+(sp/attribute :test/user-role      :test/user-role-type)
+
+(sp/entity :test/user-role
+           [:test/user-id
+            :test/user-role]
+           ::sp/identity-keys [:test/user-id :test/user-role])
+
+;;; --------------------------------------------------------------------------------
+
+(deftest gql-type-names
+  (are [lhs rhs] (= lhs (apply lc/gql-type-name rhs))
+    :AddressTokenIn [:ab/address {:context :input  :kind :token}]
+    :AddressToken   [:ab/address {:context :output :kind :token}]
+    ;;
+    :Address [:ab/address nil]
+    :Address [:ab/address {:context :output :kind :record}]
+    ;;
+    :AddressTwoToken    [:ab/address-two {:context :output :kind :token}]
+    :AddressTwoTokenIn  [:ab/address-two {:context :input  :kind :token}]
+    :AddressTwoValuesIn [:ab/address-two {:context :input  :kind :values}]
+    :AddressTwoIn       [:ab/address-two {:context :input}]))
+
+(deftest ref->field-names
+  #_
+  (are [lhs rhs] (= lhs (apply lc/gql-type-name rhs))
+    :AddressTokenIn [:ab/address {:context :input  :kind :token}]
+    :AddressToken   [:ab/address {:context :output :kind :token}]
+    ;;
+    :Address [:ab/address nil]
+    :Address [:ab/address {:context :output :kind :record}]
+    ;;
+    :AddressTwoToken    [:ab/address-two {:context :output :kind :token}]
+    :AddressTwoTokenIn  [:ab/address-two {:context :input  :kind :token}]
+    :AddressTwoValuesIn [:ab/address-two {:context :input  :kind :values}]
+    :AddressTwoIn       [:ab/address-two {:context :input}]))
+
+;;; --------------------------------------------------------------------------------
+
+(deftest refs->fields
+  (is (= (lc/ref->field :scalar/string)
+         {:type        :String
+          :description "Non Blank String"}))
+
+  (is (= (lc/ref->field :scalar/string)
+         {:type        :String
+          :description "Non Blank String"}))
+
+  (is (= (lc/ref->field {:type        :scalar/string
+                         :description "Something Else"})
+         {:type        :String
+          :description "Something Else"}))
+
+  (is (= (lc/ref->field {:type        :scalar/string
+                         :description "Something Else"
+                         ;;
+                         ::lc/type   :strange-string})
+         {:type        :StrangeString
+          :description "Something Else"}))
+
+  (is (= (lc/ref->field :test/user-id)
+         {:type :String}))
+
+  (is (= (lc/ref->field {:type        :test/user-id
+                         :description "User ID"})
+         {:type        :String
+          :description "User ID"}))
+
+  (is (= (lc/ref->field {:type        :test/user-id
+                         :required?   true})
+         {:type        '(non-null :String)}))
+  ;;
+  ;; Handling lists
+  (is (= (lc/ref->field {:type [:scalar/string]})
+         {:type        '(list (non-null :String))
+          :description "Non Blank String"})))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -47,161 +143,38 @@
          ::lc/type        :aus-state
          ::lc/description "An Australian State or Territory for GQL, with a different key.")
 
-(deftest enums->schema
+(deftest types->enums
   (testing "Inline Transforms"
-    (is (= (lc/enum->schema {:key :test :values [:this :is :values] :description "What evs"})
+    (is (= (lc/enum->enum {:type   :test
+                           :values [:this :is :values]
+                           :description "What evs"})
            [:Test
-            {:values [:THIS :IS :VALUES], :description "What evs"}])))
+            {:values      [:THIS :IS :VALUES]
+             :description "What evs"}])))
 
   (testing "SP Transforms"
-    (is (= (lc/enum->schema :scalar/au-state-1)
+    (is (= (lc/enum->enum :scalar/au-state-1)
            [:AuState1
             {:values [:ACT :NSW :NT :QLD :SA :TAS :VIC :WA],
              :description "An Australian State or Territory"}]))
 
-    (is (= (lc/enum->schema :scalar/au-state-2)
+    (is (= (lc/enum->enum :scalar/au-state-2)
            [:AuState2
             {:values [:ACT :NSW :NT :QLD :SA :TAS :VIC :WA],
              :description "An Australian State or Territory for GQL."}]))
 
-    (is (= (lc/enum->schema :scalar/au-state-3)
+    (is (= (lc/enum->enum :scalar/au-state-3)
            [:AusState
             {:values [:ACT :NSW :NT :QLD :SA :TAS :VIC :WA],
              :description "An Australian State or Territory for GQL, with a different key."}])))
 
   (testing "Can't Transform"
     (is (thrown? clojure.lang.ExceptionInfo
-                 (lc/enum->schema :asdf)))))
+                 (lc/enum->enum :invalid)))))
 
-;;; --------------------------------------------------------------------------------
 
-(sp/attribute :ab/street :scalar/string     ::sp/label "Street")
-(sp/attribute :ab/state  :scalar/au-state-1 ::sp/label "State")
-
-(sp/scalar :scalar/date #(instance? java.util.Date %) ::sp/description "Java Date")
-(sp/attribute :ab/day    :scalar/date
-              ::sp/label "Day"
-              ::lc/type :string)
-
-(sp/attribute :ab/status :scalar/integer
-              ;;
-              ::sp/label "Computed Field"
-              ;;
-              ::lc/description "This has a resolver"
-              ::lc/resolver    'dummy-function)
-
-(deftest transform-attrs->fields
-  (is (= (lc/attr->field :scalar/string)
-         {:type        :String
-          :description "Non Blank String"}))
-
-  (is (= (lc/attr->field :scalar/string)
-         {:type        :String
-          :description "Non Blank String"}))
-
-  (is (= (lc/attr->field {:type        :scalar/string
-                          :description "Something Else"})
-         {:type        :String
-          :description "Something Else"}))
-
-  (is (= (lc/attr->field {:type        :scalar/string
-                          :description "Something Else"
-                          ;;
-                          ::lc/type   :strange-string})
-         {:type        :StrangeString
-          :description "Something Else"}))
-
-  (is (= (lc/attr->field :ab/street)
-         {:type :String}))
-
-  (is (= (lc/attr->field {:type        :ab/street
-                          :description "Special Street"})
-         {:type        :String
-          :description "Special Street"}))
-
-  (is (= (lc/attr->field {:type        :ab/street
-                          :required?   true
-                          :description "Special Street"})
-         {:type        '(non-null :String)
-          :description "Special Street"}))
-  ;;
-  ;; Handling lists
-  (is (= (lc/attr->field {:type [:scalar/string]})
-         {:type        '(list (non-null :String))
-          :description "Non Blank String"})))
-
-;;; --------------------------------------------------------------------------------
-
-(sp/entity :ab/address-1 [:ab/street :ab/state]
-           ::sp/required-keys [:ab/state]
-           ::sp/label         "Address"
-           ::sp/description   "An Australian Address")
-
-(deftest transform-entity-attrs->fields
-  (is (= (lc/attr->field :ab/address-1)
-         {:type        :Address1
-          :description "An Australian Address"}))
-
-  (is (= (lc/attr->field {:type    :ab/address-1
-                          :kind    :token
-                          :context :input})
-         {:type        :Address1TokenIn
-          :description "An Australian Address"})))
-
-;;; --------------------------------------------------------------------------------
-
-(sp/entity :ab/address-2 [:ab/street :ab/state]
-           ::lc/type          :address-two
-           ::sp/required-keys [:ab/state]
-           ::sp/label         "Address"
-           ::sp/description   "An Australian Address")
-
-(deftest gql-names
-  (are [lhs rhs] (= lhs
-                    (-> (lc/attr-type nil
-                                      (:type rhs)
-                                      rhs)
-                        :type))
-    :AddressTokenIn {:type :ab/address :context :input  :kind :token}
-    :AddressToken   {:type :ab/address :context :output :kind :token}
-    ;;
-    :Address      {:type :ab/address}
-    :Address      {:type :ab/address :context :output :kind :record}
-    ;;
-    :AddressTwoToken    {:type :ab/address-2 :context :output :kind :token}
-    :AddressTwoTokenIn  {:type :ab/address-2 :context :input  :kind :token}
-    :AddressTwoValuesIn {:type :ab/address-2 :context :input  :kind :values}
-    :AddressTwoIn       {:type :ab/address-2 :context :input}))
-
-;;; --------------------------------------------------------------------------------
-
-(sp/attribute :test/user-id     :scalar/string)
-(sp/attribute :test/given-name  :scalar/string)
-(sp/attribute :test/family-name :scalar/string)
-(sp/attribute :test/dob         :scalar/ju-date)
-(sp/attribute :test/height      :scalar/integer)
-(sp/attribute :test/citizen?    :scalar/boolean)
-
-(sp/entity :test/user
-           [:test/user-id
-            :test/given-name
-            :test/family-name
-            :test/dob
-            :test/height
-            :test/citizen?]
-           ::sp/identity-keys [:test/user-id]
-           ::sp/required-keys [:test/family-name])
-
-(sp/enum      :test/user-role-type [:one :two :three])
-(sp/attribute :test/user-role      :test/user-role-type)
-
-(sp/entity :test/user-role
-           [:test/user-id
-            :test/user-role]
-           ::sp/identity-keys [:test/user-id :test/user-role])
-
-(deftest output-object-transformations
-  (is (= (lc/entity->output :test/user)
+(deftest entities->output-fields
+  (is (= (lc/entity->output-fields :test/user)
          {:userId     {:type :String}
           :givenName  {:type :String}
           :familyName {:type :String}
@@ -209,36 +182,39 @@
           :height     {:type :Integer}
           :isCitizen  {:type :Boolean}}))
 
-  (is (= (lc/entity->output :test/user-role)
+  (is (= (lc/entity->output-fields :test/user {:token? true})
+         {:userId     {:type :String}}))
+
+  (is (= (lc/entity->output-fields :test/user {:values? true})
+         {:givenName  {:type :String}
+          :familyName {:type :String}
+          :dob        {:type :JuDate}
+          :height     {:type :Integer}
+          :isCitizen  {:type :Boolean}}))
+
+  (is (= (lc/entity->output-fields :test/user-role)
          {:userId   {:type :String}
           :userRole {:type :UserRole}}))
 
-  (is (= (lc/entity->output {:test-id :scalar/string
-                             :age     :scalar/integer
-                             :uuid    :scalar/string})
+  (is (= (lc/entity->output-fields {:test-id :scalar/string
+                                    :age     :scalar/integer
+                                    :uuid    :scalar/string})
          {:testId {:type :String, :description "Non Blank String"}
           :age    {:type :Integer}
           :uuid   {:type :String :description "Non Blank String"}}))
 
-
-  (is (= (lc/entity->output {:test-id :scalar/string
-                             :age     :scalar/integer
-                             :uuid    {:type     :scalar/string
-                                       :resolver 'test-uuid-resolver}})
+  (is (= (lc/entity->output-fields {:test-id :scalar/string
+                                    :age     :scalar/integer
+                                    :uuid    {:type     :scalar/string
+                                              :resolver 'test-uuid-resolver}})
          {:testId {:type :String, :description "Non Blank String"}
           :age    {:type :Integer}
           :uuid   {:type        :String
                    :description "Non Blank String"
-                   :resolver    'test-uuid-resolver}}))
+                   :resolver    'test-uuid-resolver}})))
 
-  (is (= (lc/entity->output {:type :test/user})
-         ))
-
-  ;; Want to be able to handle options like;
-  #_(lc/entity->output-object {:test-id {:lc/type :gql-integer}}))
-
-(deftest input-object-transformations
-  (is (= (lc/entity->input :test/user)
+(deftest entities->input-fields
+  (is (= (lc/entity->input-fields :test/user)
          {:userId     {:type '(non-null :String)}
           :givenName  {:type :String}
           :familyName {:type '(non-null :String)}
@@ -246,34 +222,59 @@
           :height     {:type :Integer}
           :isCitizen  {:type :Boolean}}))
 
-  (is (= (lc/entity->input {:type :test/user :token? true})
+  (is (= (lc/entity->input-fields :test/user {:token? true})
          {:userId {:type '(non-null :String)}}))
 
-  (is (= (lc/entity->input {:type :test/user :values? true})
+  (is (= (lc/entity->input-fields :test/user {:values? true})
          {:givenName  {:type :String},
           :familyName {:type '(non-null :String)},
           :dob        {:type :JuDate},
           :height     {:type :Integer},
           :isCitizen  {:type :Boolean}}))
 
-  (is (= (lc/entity->input {:givenName  {:type :string}
-                            :familyName {:type :string :required? true}
-                            :dob        {:type :ju-date}
-                            :height     {:type :integer}
-                            :citizen?   {:type :boolean}})
+  (is (= (lc/entity->input-fields {:givenName  {:type :string}
+                                   :familyName {:type :string :required? true}
+                                   :dob        {:type :ju-date}
+                                   :height     {:type :integer}
+                                   :citizen?   {:type :boolean}})
          {:givenName  {:type :String}
           :familyName {:type '(non-null :String)}
           :dob        {:type :JuDate}
           :height     {:type :Integer}
           :isCitizen  {:type :Boolean}})))
 
-(deftest query-transformations
-  (is (= (lc/transform-query {:type [:ab/user]
-                              :args {:name-like {:type :string}
-                                     :tags      [:string]}})
-         '{:type {:type (list (non-null :User))}
+(deftest endpoints->gql
+  (is (= (lc/endpoint->gql {:type [:test/user]
+                            :args {:name-like {:type :string}
+                                   :tags      [:string]}})
+         '{:type (list (non-null :User))
            :args {:nameLike {:type :String}
-                  :tags     {:type (list (non-null :String))}}})))
+                  :tags     {:type (list (non-null :String))}}}))
+
+  (is (= (lc/endpoint->gql {:type [:test/user]
+                            :args {:name-like {:type      :string
+                                               :required? true}
+                                   :tags      [:string]}})
+         '{:type (list (non-null :User))
+           :args {:nameLike {:type (non-null :String)}
+                  :tags     {:type (list (non-null :String))}}}))
+
+  (is (= (lc/endpoint->gql {:type [:test/user]
+                            :args {:name-like {:type      :string
+                                               :required? true}
+                                   :tags      [:string]}
+                            :description "DESCRIPTION"
+                            :resolver    'resolve-me})
+         '{:type        (list (non-null :User))
+           :args        {:nameLike {:type (non-null :String)}
+                         :tags     {:type (list (non-null :String))}}
+           :description "DESCRIPTION"
+           :resolver    resolve-me}))
+
+
+  (is (= (lc/endpoint->gql {:type {:type      :boolean
+                                   :required? true}})
+         '{:type (non-null :Boolean)})))
 
 #_
 (deftest transform-schema
