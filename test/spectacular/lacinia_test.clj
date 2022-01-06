@@ -244,6 +244,13 @@
           :isCitizen  {:type :Boolean}})))
 
 (deftest endpoints->gql
+  (is (= (lc/endpoint->gql {:type     :test/user
+                            :args     {:user-id :test/user-id}
+                            :resolver 'fetch-user})
+         '{:type     :User
+           :args     {:userId {:type :String}}
+           :resolver fetch-user}))
+
   (is (= (lc/endpoint->gql {:type [:test/user]
                             :args {:name-like {:type :string}
                                    :tags      [:string]}})
@@ -271,10 +278,76 @@
            :description "DESCRIPTION"
            :resolver    resolve-me}))
 
-
   (is (= (lc/endpoint->gql {:type {:type      :boolean
                                    :required? true}})
-         '{:type (non-null :Boolean)})))
+         '{:type (non-null :Boolean)}))
+
+  (is (= (lc/endpoint->gql {:type     [:test/user]
+                            :args     {:token {:type      :test/user
+                                               :token?    true
+                                               :required? true}}
+                            :resolver 'fetch-user})
+         '{:type     (list (non-null :User))
+           :args     {:token {:type (non-null :UserTokenIn)}}
+           :resolver fetch-user})))
+
+(deftest endpoints->gql
+  (let [q1 {:fetch-user {:type     [:test/user]
+                         :args     {:user-id {:type      :test/user-id
+                                              :required? true}}
+                         :resolver 'fetch-user}}
+
+        q2 {:fetch-user {:type     [:test/user]
+                         :args     {:token {:type      :test/user
+                                            :token?    true
+                                            :required? true}}
+                         :resolver 'fetch-user}}]
+    (is (= (lc/endpoints->gql q1)
+           [[:fetchUser '{:type     (list (non-null :User)),
+                          :args     {:userId {:type (non-null :String)}},
+                          :resolver fetch-user}]]))
+
+    (is (= (lc/endpoints->outputs q1)
+           [{:type :test/user, :gql-name :user}]))
+
+    ;; Doesn't have any entities as args
+    (is (nil? (lc/endpoints->inputs q1)))))
+
+(deftest endpoint-types
+  (let [q1 {:fetch-user       {:type     :test/user
+                               :args     {:token {:type      :test/user
+                                                  :kind      :token
+                                                  :required? true}}
+                               :resolver 'fetch-user}
+            :fetch-user-by-id {:type     :test/user
+                               :args     {:user-id :string}
+                               :resolver 'fetch-user}
+            :fetch-users      {:type     [:test/user]
+                               :resolver 'fetch-user}
+            ;;
+            :fetch-roles         {:type {:type [:test/user-role]
+                                         :kind :token}}
+            :fetch-roles-verbose {:type [:test/user-role]}}
+
+        m1 {:add-user    {:type :test/user
+                          :args {:record {:type      :test/user
+                                          :kind      :values
+                                          :required? true}}}
+            :modify-user {:type :test/user
+                          :args {:record {:type      :test/user
+                                          :required? true}}}
+            :remove-user {:type :boolean
+                          :args {:record {:type      :test/user
+                                          :kind      :token
+                                          :required? true}}}}]
+    (is (= (lc/endpoint-types q1)
+           [{:type :test/user      :object-type :entity}
+            {:type :test/user-role :object-type :entity}
+            {:type :test/user-role :object-type :entity :kind :token}]))
+
+    (clojure.pprint/pprint (lc/endpoint-args q1))
+
+    (clojure.pprint/pprint (lc/endpoint-args m1))))
 
 #_
 (deftest transform-schema

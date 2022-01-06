@@ -76,7 +76,9 @@
 
 (defn canonicalise-ref
   [ref]
-  (let [{ref-type :type :as ref}
+  (let [{ref-type :type
+         kind     :kind
+         :as ref}
         (cond
           ;; :keyword
           (keyword? ref) {:type ref}
@@ -108,6 +110,10 @@
       (throw (ex-info "Invalid reference type; ref-type must be a register spectacular keyword or an unnamespaced keyword."
                       {:ref-type ref-type
                        :ref      ref})))
+    (when-not (#{:token :values :record} (or kind :record))
+      (throw (ex-info "Invalid reference kind; kind-type must be a :token :values or :record."
+                      {:kind kind
+                       :ref  ref})))
     ref))
 
 (defn ref->field
@@ -235,3 +241,56 @@
                                          (into {})))
     description (assoc :description description)
     resolver    (assoc :resolver    resolver)))
+
+(defn endpoints->gql
+  [endpoints]
+  (->> endpoints
+       (mapv (fn [[k v]]
+               [(ref->field-name k v)
+                (endpoint->gql     v)]))))
+
+;;; --------------------------------------------------------------------------------
+
+(defn ref->object
+  [ref]
+  (let [{k :type :as ref} (canonicalise-ref ref)]
+    (when-let [object-type (cond
+                             (sp/enum?   k) :enum
+                             (sp/entity? k) :entity)]
+      (-> ref
+          (assoc :object-type object-type)
+          (dissoc :many? :required?)))))
+
+(defn endpoint-types
+  [endpoints]
+  (some->> endpoints
+           (map #(-> % second :type ref->object))
+           (remove   nil?)
+           seq
+           (group-by (juxt :type :kind))
+           (sort-by  first)
+           (map      #(-> % second first))
+           vec))
+
+(defn endpoint-args
+  [endpoints]
+  (some->> endpoints
+           (map    second)
+           (mapcat :args)
+           (map    (fn [[k v]]
+                     (some-> v
+                             ref->object
+                             (assoc :arg-name k))))
+           (remove nil?)
+           seq
+           (group-by (juxt :type :kind))
+           (sort-by  first)
+           (map (fn [[_ records]]
+                  (-> records
+                      first
+                      (dissoc :arg-name)
+                      (assoc :arg-names (->> records
+                                             (map :arg-name)
+                                             distinct
+                                             vec)))))
+           vec))
