@@ -1,7 +1,8 @@
 (ns spectacular.lacinia-test
   (:require [clojure.test :refer :all]
             [clojure.spec.alpha :as s]
-            [clojure.data :refer [diff]])
+            [clojure.data :refer [diff]]
+            [clojure.pprint :refer [pprint]])
   (:require [spectacular.core    :as sp]
             [spectacular.lacinia :as lc]
             :reload))
@@ -172,7 +173,6 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (lc/enum->enum :invalid)))))
 
-
 (deftest entities->output-fields
   (is (= (lc/entity->output-fields :test/user)
          {:userId     {:type :String}
@@ -243,6 +243,26 @@
           :height     {:type :Integer}
           :isCitizen  {:type :Boolean}})))
 
+(sp/enum :test/enum-type-1 [:one  :two  :three])
+(sp/enum :test/enum-type-2 [:four :five :six])
+
+(sp/attribute :test/enum-1 :test/enum-type-1)
+(sp/attribute :test/enum-2 :test/enum-type-2)
+(sp/entity    :test/grand-child-entity [:test/enum-1 :test/enum-2])
+
+(sp/attribute :test/grand-child-attr :test/grand-child-entity)
+(sp/entity    :test/child-entity     [:test/grand-child-attr])
+
+(sp/attribute :test/child-attr    :test/child-entity)
+(sp/entity    :test/parent-entity [:test/child-attr])
+
+(deftest referenced-entities
+  (is (= (lc/referenced-entities :test/parent-entity)
+         #{:test/grand-child-entity :test/child-entity}))
+
+  (is (= (lc/referenced-enums :test/grand-child-entity)
+         #{:test/enum-type-1 :test/enum-type-2})))
+
 (deftest endpoints->gql
   (is (= (lc/endpoint->gql {:type     :test/user
                             :args     {:user-id :test/user-id}
@@ -305,49 +325,55 @@
     (is (= (lc/endpoints->gql q1)
            [[:fetchUser '{:type     (list (non-null :User)),
                           :args     {:userId {:type (non-null :String)}},
-                          :resolver fetch-user}]]))
+                          :resolver fetch-user}]]))))
 
-    (is (= (lc/endpoints->outputs q1)
-           [{:type :test/user, :gql-name :user}]))
+(def +q1+ {:fetch-user       {:type     :test/user
+                              :args     {:token {:type      :test/user
+                                                 :kind      :token
+                                                 :required? true}}
+                              :resolver 'fetch-user}
+           :fetch-user-by-id {:type     :test/user
+                              :args     {:user-id :string}
+                              :resolver 'fetch-user}
+           :fetch-users      {:type     [:test/user]
+                              :resolver 'fetch-user}
+           ;;
+           :fetch-roles         {:type {:type [:test/user-role]
+                                        :kind :token}}
+           :fetch-roles-verbose {:type [:test/user-role]}})
 
-    ;; Doesn't have any entities as args
-    (is (nil? (lc/endpoints->inputs q1)))))
+(def +m1+ {:add-user    {:type :test/user
+                         :args {:record {:type      :test/user
+                                         :kind      :values
+                                         :required? true}}}
+           :modify-user {:type :test/user
+                         :args {:record {:type      :test/user
+                                         :required? true}}}
+           :remove-user {:type :boolean
+                         :args {:record {:type      :test/user
+                                         :kind      :token
+                                         :required? true}}}})
 
-(deftest endpoint-types
-  (let [q1 {:fetch-user       {:type     :test/user
-                               :args     {:token {:type      :test/user
-                                                  :kind      :token
-                                                  :required? true}}
-                               :resolver 'fetch-user}
-            :fetch-user-by-id {:type     :test/user
-                               :args     {:user-id :string}
-                               :resolver 'fetch-user}
-            :fetch-users      {:type     [:test/user]
-                               :resolver 'fetch-user}
-            ;;
-            :fetch-roles         {:type {:type [:test/user-role]
-                                         :kind :token}}
-            :fetch-roles-verbose {:type [:test/user-role]}}
+(deftest endpoint-input-and-output-types
+  (is (= (lc/endpoint-output-objects +q1+ +m1+)
+         [{:type :test/user      :object-type :entity}
+          {:type :test/user-role :object-type :entity}
+          {:type :test/user-role :object-type :entity :kind :token}]))
 
-        m1 {:add-user    {:type :test/user
-                          :args {:record {:type      :test/user
-                                          :kind      :values
-                                          :required? true}}}
-            :modify-user {:type :test/user
-                          :args {:record {:type      :test/user
-                                          :required? true}}}
-            :remove-user {:type :boolean
-                          :args {:record {:type      :test/user
-                                          :kind      :token
-                                          :required? true}}}}]
-    (is (= (lc/endpoint-types q1)
-           [{:type :test/user      :object-type :entity}
-            {:type :test/user-role :object-type :entity}
-            {:type :test/user-role :object-type :entity :kind :token}]))
+  (is (= (lc/endpoint-input-objects +q1+ +m1+)
+         [{:type :test/user :object-type :entity}
+          {:type :test/user :object-type :entity :kind :token}
+          {:type :test/user :object-type :entity :kind :values}])))
 
-    (clojure.pprint/pprint (lc/endpoint-args q1))
+#_
+(deftest output-input-objects
 
-    (clojure.pprint/pprint (lc/endpoint-args m1))))
+  (let [output-types (lc/endpoint-output-types +q1+ +m1+)
+        input-types  (lc/endpoint-input-types +q1+ +m1+)]
+    (pprint (map lc/entity->output-fields output-types))
+    )
+
+  )
 
 #_
 (deftest transform-schema

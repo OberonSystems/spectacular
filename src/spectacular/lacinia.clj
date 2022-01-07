@@ -1,6 +1,6 @@
 (ns spectacular.lacinia
   (:require [clojure.string :as s]
-            [clojure.set :refer [union]]
+            [clojure.set :refer [union difference]]
             ;;
             [camel-snake-kebab.core :as csk]
             [camel-snake-kebab.extras :as cske]
@@ -261,9 +261,24 @@
           (assoc :object-type object-type)
           (dissoc :many? :required?)))))
 
-(defn endpoint-types
-  [endpoints]
+(defn endpoint-input-objects
+  [& endpoints]
   (some->> endpoints
+           (apply merge)
+           (map    second)
+           (mapcat :args)
+           (map #(-> % second ref->object))
+           (remove nil?)
+           seq
+           (group-by (juxt :type :kind))
+           (sort-by  first)
+           (map      #(-> % second first))
+           vec))
+
+(defn endpoint-output-objects
+  [& endpoints]
+  (some->> endpoints
+           (apply merge)
            (map #(-> % second :type ref->object))
            (remove   nil?)
            seq
@@ -272,25 +287,55 @@
            (map      #(-> % second first))
            vec))
 
-(defn endpoint-args
-  [endpoints]
-  (some->> endpoints
-           (map    second)
-           (mapcat :args)
-           (map    (fn [[k v]]
-                     (some-> v
-                             ref->object
-                             (assoc :arg-name k))))
-           (remove nil?)
+(defn referenced-enums
+  [entity-type]
+  (some->> (sp/attribute-keys entity-type)
+           (map sp/get-attribute-type)
+           (filter sp/enum?)
            seq
-           (group-by (juxt :type :kind))
-           (sort-by  first)
-           (map (fn [[_ records]]
-                  (-> records
-                      first
-                      (dissoc :arg-name)
-                      (assoc :arg-names (->> records
-                                             (map :arg-name)
-                                             distinct
-                                             vec)))))
-           vec))
+           set))
+
+(defn referenced-entities
+  [entity-type]
+  (let [child-entities #(->> (sp/attribute-keys %)
+                             (map sp/get-attribute-type)
+                             (filter sp/entity?)
+                             set)
+        parent #{entity-type}]
+    (loop [seen   #{}
+           unseen (difference (child-entities entity-type)
+                              parent
+                              seen)]
+      (if-let [unseen-type (first unseen)]
+        (let [seen (conj seen unseen-type)]
+          (recur seen
+                 (difference (union unseen
+                                    (child-entities unseen-type))
+                             seen)))
+        (some-> seen seq set)))))
+
+;;; --------------------------------------------------------------------------------
+
+#_
+(defn transform-schema
+  [{:keys [enums objects queries mutations]}]
+  (let [output-objects (lc/endpoint-output-objects queries mutations)
+        all-objects    (mapcat (referenced-objects output-objects))
+        ;;
+        input-objects  (lc/endpoint-input-objects  queries mutations)
+        ;;
+        enums        (some->> (concat enums
+                                      (lc/endpoint-enums   queries mutations)
+                                      (lc/referenced-enums output-objects)
+                                      (lc/referenced-enums input-objects))
+                              seq
+                              (group-by :type)
+                              (sort-by first)
+                              (map #(-> second first)))
+
+        ;;
+
+        ]
+    {:enums ()}
+    )
+  )

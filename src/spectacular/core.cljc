@@ -39,17 +39,22 @@
   (and (scalar? k)
        (-get k ::enum?)))
 
-(defn attr?
-  [k]
-  (= (-get k ::kind) ::attribute))
-
 (defn entity?
   [k]
   (= (-get k ::kind) ::entity))
 
+(defn attr?
+  [k]
+  (= (-get k ::kind) ::attribute))
+
 (defn get-scalar
   [k]
   (when (scalar? k)
+    (-get k)))
+
+(defn get-entity
+  [k]
+  (when (entity? k)
     (-get k)))
 
 (defn get-attribute
@@ -57,10 +62,10 @@
   (when (attr? k)
     (-get k)))
 
-(defn get-entity
+(defn get-attribute-type
   [k]
-  (when (entity? k)
-    (-get k)))
+  (when (attr? k)
+    (-get k ::scalar-key)))
 
 ;;;
 
@@ -83,8 +88,9 @@
 
 (defmacro attribute
   [k sk & {:as info}]
-  (when-not (scalar? sk)
-    (throw (ex-info "Attribute must be associated with a registered scalar." {:attribute-key k :scalar-key sk})))
+  (when-not (or (scalar? sk)
+                (entity? sk))
+    (throw (ex-info "Attribute must be associated with a registered scalar or entity." {:attribute-key k :scalar-key sk})))
   `(do
      (s/def ~k (s/get-spec ~sk))
      (-set ~k ::attribute (assoc ~info ::scalar-key ~sk))))
