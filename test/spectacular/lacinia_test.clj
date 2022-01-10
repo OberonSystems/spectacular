@@ -44,34 +44,27 @@
             :test/user-role]
            ::sp/identity-keys [:test/user-id :test/user-role])
 
+(sp/entity-token  :test/user-token  :test/user)
+(sp/entity-values :test/user-values :test/user)
+
 ;;; --------------------------------------------------------------------------------
 
 (deftest gql-type-names
   (are [lhs rhs] (= lhs (apply lc/gql-type-name rhs))
-    :AddressTokenIn [:ab/address {:context :input  :kind :token}]
-    :AddressToken   [:ab/address {:context :output :kind :token}]
+    :AddressIn [:ab/address {:input? true}]
+    :Address   [:ab/address nil]
     ;;
-    :Address [:ab/address nil]
-    :Address [:ab/address {:context :output :kind :record}]
+    :UserRole   [:test/user-role nil]
+    :UserRoleIn [:test/user-role {:input? true}]
     ;;
-    :AddressTwoToken    [:ab/address-two {:context :output :kind :token}]
-    :AddressTwoTokenIn  [:ab/address-two {:context :input  :kind :token}]
-    :AddressTwoValuesIn [:ab/address-two {:context :input  :kind :values}]
-    :AddressTwoIn       [:ab/address-two {:context :input}]))
-
-(deftest ref->field-names
-  #_
-  (are [lhs rhs] (= lhs (apply lc/gql-type-name rhs))
-    :AddressTokenIn [:ab/address {:context :input  :kind :token}]
-    :AddressToken   [:ab/address {:context :output :kind :token}]
+    :User   [:test/user nil]
+    :UserIn [:test/user {:input? true}]
     ;;
-    :Address [:ab/address nil]
-    :Address [:ab/address {:context :output :kind :record}]
+    :UserToken   [:test/user-token nil]
+    :UserTokenIn [:test/user-token {:input? true}]
     ;;
-    :AddressTwoToken    [:ab/address-two {:context :output :kind :token}]
-    :AddressTwoTokenIn  [:ab/address-two {:context :input  :kind :token}]
-    :AddressTwoValuesIn [:ab/address-two {:context :input  :kind :values}]
-    :AddressTwoIn       [:ab/address-two {:context :input}]))
+    :UserValues   [:test/user-values nil]
+    :UserValuesIn [:test/user-values {:input? true}]))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -182,10 +175,10 @@
           :height     {:type :Integer}
           :isCitizen  {:type :Boolean}}))
 
-  (is (= (lc/entity->output-fields :test/user {:token? true})
+  (is (= (lc/entity->output-fields :test/user-token)
          {:userId     {:type :String}}))
 
-  (is (= (lc/entity->output-fields :test/user {:values? true})
+  (is (= (lc/entity->output-fields :test/user-values)
          {:givenName  {:type :String}
           :familyName {:type :String}
           :dob        {:type :JuDate}
@@ -222,10 +215,10 @@
           :height     {:type :Integer}
           :isCitizen  {:type :Boolean}}))
 
-  (is (= (lc/entity->input-fields :test/user {:token? true})
+  (is (= (lc/entity->input-fields :test/user-token)
          {:userId {:type '(non-null :String)}}))
 
-  (is (= (lc/entity->input-fields :test/user {:values? true})
+  (is (= (lc/entity->input-fields :test/user-values)
          {:givenName  {:type :String},
           :familyName {:type '(non-null :String)},
           :dob        {:type :JuDate},
@@ -328,42 +321,33 @@
                           :resolver fetch-user}]]))))
 
 (def +q1+ {:fetch-user       {:type     :test/user
-                              :args     {:token {:type      :test/user
-                                                 :kind      :token
+                              :args     {:token {:type      :test/user-token
                                                  :required? true}}
                               :resolver 'fetch-user}
            :fetch-user-by-id {:type     :test/user
                               :args     {:user-id :string}
                               :resolver 'fetch-user}
            :fetch-users      {:type     [:test/user]
-                              :resolver 'fetch-user}
-           ;;
-           :fetch-roles         {:type {:type [:test/user-role]
-                                        :kind :token}}
-           :fetch-roles-verbose {:type [:test/user-role]}})
+                              :resolver 'fetch-user}})
 
 (def +m1+ {:add-user    {:type :test/user
-                         :args {:record {:type      :test/user
-                                         :kind      :values
+                         :args {:record {:type      :test/user-values
                                          :required? true}}}
            :modify-user {:type :test/user
                          :args {:record {:type      :test/user
                                          :required? true}}}
            :remove-user {:type :boolean
-                         :args {:record {:type      :test/user
-                                         :kind      :token
+                         :args {:record {:type      :test/user-token
                                          :required? true}}}})
 
 (deftest endpoint-input-and-output-types
   (is (= (lc/endpoint-output-objects +q1+ +m1+)
-         [{:type :test/user      :object-type :entity}
-          {:type :test/user-role :object-type :entity}
-          {:type :test/user-role :object-type :entity :kind :token}]))
+         [{:type :test/user :object-type :entity}]))
 
   (is (= (lc/endpoint-input-objects +q1+ +m1+)
-         [{:type :test/user :object-type :entity}
-          {:type :test/user :object-type :entity :kind :token}
-          {:type :test/user :object-type :entity :kind :values}])))
+         [{:type :test/user        :object-type :entity}
+          {:type :test/user-token  :object-type :entity}
+          {:type :test/user-values :object-type :entity}])))
 
 #_
 (deftest output-input-objects

@@ -67,6 +67,61 @@
   (when (attr? k)
     (-get k ::scalar-key)))
 
+;;; --------------------------------------------------------------------------------
+
+(defn label
+  [k]
+  (or (-get k ::label)
+      (keyword->label k)))
+
+(defn values
+  [k]
+  (-get k ::values))
+
+(defn scalar-key
+  [k]
+  (-get k ::scalar-key))
+
+(defn description
+  [k]
+  (-get k ::description))
+
+(defn attribute-keys
+  [k]
+  (-get k ::attribute-keys))
+
+(defn identity-keys
+  [k]
+  (-get k ::identity-keys))
+
+(defn required-keys
+  [k]
+  (-get k ::required-keys))
+
+(defn value-keys
+  [k]
+  (-get k ::value-keys))
+
+;;; --------------------------------------------------------------------------------
+;;; Enum specific helpers
+
+(defn -enum-values->label
+  [k f]
+  (let [f (or f keyword->label)]
+    (some->> (values k)
+             (map (fn [value]
+                    [value (f value)]))
+             seq
+             (into {}))))
+
+(defn labels
+  [k]
+  (-enum-values->label k (-get k ::labels)))
+
+(defn abbreviations
+  [k]
+  (-enum-values->label k (-get k ::abbrevs)))
+
 ;;;
 
 (defmacro scalar
@@ -129,11 +184,13 @@
 
                               (not (empty? (intersection identity-set required-set)))
                               ["Identity Keys and Required Keys cannot intersect."])]
-      (throw (ex-info error (merge {:k              k
-                                    :attribute-keys attribute-keys
-                                    :identity-keys  identity-keys
-                                    :required-keys  required-keys}
-                                   info))))
+      (throw (ex-info error {:entity-key     k
+                             ;;
+                             :attribute-keys attribute-keys
+                             :identity-keys  identity-keys
+                             :required-keys  required-keys
+                             ;;
+                             :info info})))
     `(do
        (s/def ~k (s/keys :req ~sp-required-ks :opt ~sp-optional-ks))
        (-set  ~k ::entity (assoc ~info
@@ -142,57 +199,45 @@
                                  ::required-keys  ~required-ks
                                  ::value-keys     ~value-ks)))))
 
-;;; --------------------------------------------------------------------------------
+(defmacro entity-token
+  [token-key entity-key & {:as info}]
+  (let [identity-ks (identity-keys entity-key)]
+    (when-not identity-ks
+      (ex-info "Cannot create an entity-token for an entity that does not have identity keys."
+               {:token-key  token-key
+                :entity-key entity-key
+                :info       info}))
+    `(do
+       (s/def ~token-key (s/keys :req ~identity-ks))
+       (-set  ~token-key ::entity (assoc ~info
+                                         ::entity-key     ~entity-key
+                                         ::attribute-keys ~identity-ks
+                                         ;;
+                                         ::token?         true
+                                         ::required-keys  ~identity-ks
+                                         ::identity-keys  ~identity-ks)))))
 
-(defn label
-  [k]
-  (or (-get k ::label)
-      (keyword->label k)))
-
-(defn values
-  [k]
-  (-get k ::values))
-
-(defn scalar-key
-  [k]
-  (-get k ::scalar-key))
-
-(defn description
-  [k]
-  (-get k ::description))
-
-(defn attribute-keys
-  [k]
-  (-get k ::attribute-keys))
-
-(defn identity-keys
-  [k]
-  (-get k ::identity-keys))
-
-(defn required-keys
-  [k]
-  (-get k ::required-keys))
-
-(defn value-keys
-  [k]
-  (-get k ::value-keys))
-
-;;; --------------------------------------------------------------------------------
-;;; Enum specific helpers
-
-(defn -enum-values->label
-  [k f]
-  (let [f (or f keyword->label)]
-    (some->> (values k)
-             (map (fn [value]
-                    [value (f value)]))
-             seq
-             (into {}))))
-
-(defn labels
-  [k]
-  (-enum-values->label k (-get k ::labels)))
-
-(defn abbreviations
-  [k]
-  (-enum-values->label k (-get k ::abbrevs)))
+(defmacro entity-values
+  [values-key entity-key & {:as info}]
+  (let [value-ks    (value-keys entity-key)
+        value-set   (set value-ks)
+        ;;
+        required-ks (some->> entity-key
+                             required-keys
+                             (filter #(contains? value-set %))
+                             seq
+                             vec)]
+    (when-not value-ks
+      (ex-info "Cannot create a values-entity for an entity that does not have any value keys."
+               {:values-key values-key
+                :entity-key entity-key
+                :info       info}))
+    `(do
+       (s/def ~values-key (s/keys :opt ~value-ks))
+       (-set  ~values-key ::entity (assoc ~info
+                                          ::entity-key     ~entity-key
+                                          ::attribute-keys ~value-ks
+                                          ;;
+                                          ::values?       true
+                                          ::required-keys ~required-ks
+                                          ::value-keys    ~value-ks)))))

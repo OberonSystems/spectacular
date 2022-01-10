@@ -28,18 +28,10 @@
       k))
 
 (defn gql-type-name
-  [k {:keys [context kind]}]
+  [k {:keys [input?]}]
   (let [type-part    (csk/->PascalCaseString k)
-        kind-part    (case kind
-                       :token   "Token"
-                       :values  "Values"
-                       ;; :record
-                       "")
-        context-part (case context
-                       :input  "In"
-                       ;; :output
-                       "")]
-    (-> (str type-part kind-part context-part)
+        context-part (if input? "In" "")]
+    (-> (str type-part context-part)
         keyword)))
 
 ;;;
@@ -189,19 +181,12 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(defn get-entity-attribute-keys
-  [entity-key {:keys [token? values?]}]
-  (cond
-    token?  (sp/identity-keys  entity-key)
-    values? (sp/value-keys     entity-key)
-    :else   (sp/attribute-keys entity-key)))
-
 (defn entity->output-fields
   [entity & [options]]
   (let [fields (cond
                  (sp/entity? entity)
                  (map (fn [k] [(ref->field-name k nil) (ref->field k)])
-                      (get-entity-attribute-keys entity options))
+                      (sp/attribute-keys entity))
 
                  (map? entity)
                  (map (fn [[k v]] [(ref->field-name k nil) (ref->field v)])
@@ -217,7 +202,7 @@
                  (let [required? (union (-> entity sp/identity-keys set)
                                         (-> entity sp/required-keys set))]
                    (map (fn [k] [(ref->field-name k nil) (ref->field k {:required? (required? k)})])
-                        (get-entity-attribute-keys entity options)))
+                        (sp/attribute-keys entity)))
 
                  (map? entity)
                  (map (fn [[k v]] [(ref->field-name k nil) (ref->field v v)])

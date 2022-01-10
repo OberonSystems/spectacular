@@ -86,3 +86,38 @@
                                             :ab/state]))
     (is (nil? (sp/identity-keys :ab/address)))
     (is (= (sp/required-keys :ab/address) [:ab/state]))))
+
+;;;
+
+(sp/attribute :ab/person-id   :scalar/string)
+(sp/attribute :ab/given-name  :scalar/string)
+(sp/attribute :ab/family-name :scalar/string)
+
+(sp/entity :ab/person
+           [:ab/person-id
+            :ab/given-name
+            :ab/family-name]
+           ::sp/identity-keys [:ab/person-id]
+           ::sp/required-keys [:ab/family-name])
+
+(sp/entity-token  :ab/person-token  :ab/person)
+(sp/entity-values :ab/person-values :ab/person)
+
+(deftest tokens-and-values
+  (is (= (sp/identity-keys :ab/person-token)
+         [:ab/person-id]))
+
+  (is (= (sp/attribute-keys :ab/person-token)
+         [:ab/person-id]))
+
+  (is (= (sp/value-keys :ab/person-token)
+         nil))
+
+  (is (= (sp/identity-keys :ab/person-values)
+         nil))
+
+  (is (= (sp/attribute-keys :ab/person-values)
+         [:ab/given-name :ab/family-name]))
+
+  (is (= (sp/value-keys :ab/person-values)
+         [:ab/given-name :ab/family-name])))
