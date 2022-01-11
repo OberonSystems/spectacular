@@ -9,6 +9,10 @@
 
 (defonce +registry+ (atom {}))
 
+(defn clear!
+  []
+  (swap! +registry+ (constantly {})))
+
 ;;;
 
 (defn -set
@@ -124,14 +128,23 @@
 
 ;;;
 
+(defn throw-when-registered
+  [kind k]
+  (when (exists? k)
+    (throw (ex-info "Key has already been registered."
+                    {:kind kind
+                     :key  k}))))
+
 (defmacro scalar
   [k pred & {:as info}]
+  (throw-when-registered ::scalar k)
   `(do
      (s/def ~k ~pred)
      (-set  ~k ::scalar ~info)))
 
 (defmacro enum
   [k values & {:as info}]
+  (throw-when-registered ::enum k)
   (when (empty? values)
     (ex-info "Enums must have values." {:scalar-key k :values values}))
   (let [enums (set values)]
@@ -143,6 +156,7 @@
 
 (defmacro attribute
   [k sk & {:as info}]
+  (throw-when-registered ::attribute k)
   (when-not (or (scalar? sk)
                 (entity? sk))
     (throw (ex-info "Attribute must be associated with a registered scalar or entity." {:attribute-key k :scalar-key sk})))
@@ -153,6 +167,7 @@
 (defmacro entity
   [k attribute-keys & {:keys [::identity-keys ::required-keys]
                        :as info}]
+  (throw-when-registered ::entity k)
   (let [attribute-ks (some-> attribute-keys seq vec)
         identity-ks  (some-> identity-keys  seq vec)
         required-ks  (some-> required-keys  seq vec)
@@ -201,6 +216,7 @@
 
 (defmacro entity-token
   [token-key entity-key & {:as info}]
+  (throw-when-registered ::entity-token token-key)
   (let [identity-ks (identity-keys entity-key)]
     (when-not identity-ks
       (ex-info "Cannot create an entity-token for an entity that does not have identity keys."
@@ -219,6 +235,7 @@
 
 (defmacro entity-values
   [values-key entity-key & {:as info}]
+  (throw-when-registered ::entity-values values-key)
   (let [value-ks    (value-keys entity-key)
         value-set   (set value-ks)
         ;;
