@@ -9,9 +9,7 @@
 
 ;; Ensure the stuff we want to add to the registtry is cleared out on
 ;; recompile.
-(sp/clear! :scalar)
-(sp/clear! :attr)
-(sp/clear! :entity)
+(sp/clear! :scalar :attr :entity)
 
 (defn java-util-date?
   [d]
