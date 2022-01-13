@@ -7,8 +7,10 @@
             [spectacular.lacinia :as lc]
             :reload))
 
-;; Ensure the registry gets cleared when we recompile.
-(sp/clear!)
+;; Ensure the stuff we want to add to the registtry is cleared out on
+;; recompile.
+(sp/clear! :scalar)
+(sp/clear! :test)
 
 (defn java-util-date?
   [d]
