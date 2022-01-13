@@ -10,11 +10,11 @@
 (defonce +registry+ (atom {}))
 
 (defn clear!
-  [& [nsp]]
-  (let [cleared (if nsp
-                  (let [nsp (name nsp)]
+  [& namespaces]
+  (let [cleared (if namespaces
+                  (let [clear? (->> namespaces (map name) set)]
                     (->> @+registry+
-                         (remove #(-> % first namespace (= nsp)))
+                         (remove #(->> % first namespace clear?))
                          (into {})))
                   {})]
     (swap! +registry+ (constantly cleared))))
