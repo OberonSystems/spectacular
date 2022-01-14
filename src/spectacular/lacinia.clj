@@ -102,7 +102,7 @@
 
 (defn ref->field
   [{ref-type :type
-    :keys    [description many? resolver]
+    :keys    [description many? resolve]
     :as      ref}
    & {:keys [in? required?]}]
   (hash-map* :type        (-> ref
@@ -112,7 +112,7 @@
              :description (or description
                               (sp/-get ref-type ::description)
                               (sp/-get ref-type ::sp/description))
-             :resolver    resolver))
+             :resolve     resolve))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -205,26 +205,25 @@
 (defn endpoint->endpoint
   "Can be either a mutation or query."
   [{return-type :type
-    :keys       [args description resolver]
-    :as         endpoint}
-   & {:keys [in?]}]
+    :keys       [args description resolve]
+    :as         endpoint}]
   (hash-map* :type        (let [{return-type :type
                                  :keys [many? required?]
                                  :as ref} (canonicalise-ref return-type)]
                             (-> ref
-                                (ref->field-type      :in? in?)
+                                (ref->field-type      :in? false)
                                 (wrap-with-type-hints :many?     many?
                                                       :required? required?)))
-             :args        (fields->fields args)
+             :args        (fields->fields args :in? true)
              :description description
-             :resolver    resolver))
+             :resolve     resolve))
 
 (defn endpoints->endpoints
-  [endpoints & {:keys [in?]}]
+  [endpoints]
   (some->> endpoints
            (map (fn [[endpoint-name endpoint-def]]
                   [(csk/->camelCaseKeyword endpoint-name)
-                   (endpoint->endpoint endpoint-def :in? in?)]))
+                   (endpoint->endpoint endpoint-def)]))
            seq
            (into {})))
 
@@ -327,8 +326,9 @@
                            (group-by :type)
                            (map      #(-> % second first)))
         _         (throw-overlapping :enums enums enum-refs)
-        enums     (->> (concat (map #(-> % (key->as :type) enum->enum) enums)
+        enums     (some->> (concat (map #(-> % (key->as :type) enum->enum) enums)
                                (map enum-ref->enum enum-refs))
+                           seq
                        (sort-by first)
                        (into    {}))
         ;;
@@ -346,4 +346,4 @@
                :objects       objects
                :input-objects input-objects
                :queries       (endpoints->endpoints queries)
-               :mutations     (endpoints->endpoints mutations :in? true))))
+               :mutations     (endpoints->endpoints mutations))))

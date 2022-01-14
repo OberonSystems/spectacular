@@ -264,21 +264,21 @@
 (def +q1+ {:fetch-user       {:type     :entity/user
                               :args     {:token {:type      :entity/user-token
                                                  :required? true}}
-                              :resolver 'fetch-user}
+                              :resolve  'fetch-user}
            :fetch-user-by-id {:type     :entity/user
                               :args     {:user-id :string}
-                              :resolver 'fetch-user}
+                              :resolve  'fetch-user}
            :fetch-users      {:type     [:entity/user]
-                              :resolver 'fetch-user}
+                              :resolve  'fetch-user}
            ;;
            :fetch-user-roles    {:type     [:entity/user-role]
                                  :args     {:token {:type      :entity/user-token
                                                     :required? true}}
-                                 :resolver 'fetch-user-roles}
+                                 :resolve  'fetch-user-roles}
            :fetch-users-by-role {:type     [:entity/user]
                                  :args     {:role-type {:type      :scalar/user-role
                                                         :required? true}}
-                                 :resolver 'fetch-user-roles}})
+                                 :resolve  'fetch-user-roles}})
 
 (def +m1+ {:add-user    {:type :entity/user
                          :args {:record {:type      :entity/user-values
@@ -345,24 +345,24 @@
                                      :height     {:type :Integer}
                                      :isCitizen  {:type :Boolean}}}}))
     (is (= queries
-           '{:fetchUser        {:type     :User
-                                :args     {:token {:type (non-null :UserToken)}}
-                                :resolver fetch-user}
-             :fetchUserById    {:type     :User
-                                :args     {:userId {:type :String}}
-                                :resolver fetch-user}
-             :fetchUsers       {:type     (list (non-null :User))
-                                :resolver fetch-user}
-             :fetchUserRoles   {:type     (list (non-null :UserRole))
-                                :args     {:token {:type (non-null :UserToken)}}
-                                :resolver fetch-user-roles}
-             :fetchUsersByRole {:type     (list (non-null :User))
-                                :args     {:roleType {:type :UserRole}}
-                                :resolver fetch-user-roles}}))
+           '{:fetchUser        {:type    :User
+                                :args    {:token {:type (non-null :UserTokenIn)}}
+                                :resolve fetch-user}
+             :fetchUserById    {:type    :User
+                                :args    {:userId {:type :String}}
+                                :resolve fetch-user}
+             :fetchUsers       {:type    (list (non-null :User))
+                                :resolve fetch-user}
+             :fetchUserRoles   {:type    (list (non-null :UserRole))
+                                :args    {:token {:type (non-null :UserTokenIn)}}
+                                :resolve fetch-user-roles}
+             :fetchUsersByRole {:type (list (non-null :User))
+                                :args {:roleType {:type :UserRole}}
+                                :resolve fetch-user-roles}}))
     (is (= mutations
-           '{:addUser    {:type :UserIn
-                          :args {:record {:type (non-null :UserValues)}}}
-             :modifyUser {:type :UserIn
-                          :args {:record {:type (non-null :User)}}}
+           '{:addUser    {:type :User
+                          :args {:record {:type (non-null :UserValuesIn)}}}
+             :modifyUser {:type :User
+                          :args {:record {:type (non-null :UserIn)}}}
              :removeUser {:type :Boolean
-                          :args {:record {:type (non-null :UserToken)}}}}))))
+                          :args {:record {:type (non-null :UserTokenIn)}}}}))))
