@@ -3,7 +3,7 @@
             [clojure.spec.alpha :as s]
             [clojure.set :refer [subset? intersection union difference]]
             ;;
-            [spectacular.utils :refer [nsk? keyword->label]]))
+            [spectacular.utils :refer [keyword->label]]))
 
 ;;;
 
@@ -23,7 +23,7 @@
 
 (defn -set
   [k kind m]
-  (when-not (nsk? k)
+  (when-not (qualified-keyword? k)
     (throw (ex-info "Can only register Namespaced Keywords" {:k k})))
   (swap! +registry+ #(assoc % k (assoc m ::kind kind)))
   k)
@@ -190,7 +190,7 @@
                               (empty? attribute-ks)
                               ["Cannot register and entity without attributes."]
 
-                              (not (every? nsk? attribute-ks))
+                              (not (every? qualified-keyword? attribute-ks))
                               ["Cannot register an entity with invalid attributes; all attributes must be namespaced keywords."]
 
                               (not (every? attr? attribute-ks))

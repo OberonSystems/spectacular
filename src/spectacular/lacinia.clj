@@ -6,7 +6,7 @@
             [camel-snake-kebab.extras :as cske]
             ;;
             [spectacular.core :as sp]
-            [spectacular.utils :refer [nsk? hash-map* key->as]]))
+            [spectacular.utils :refer [hash-map* key->as]]))
 
 (defn wrap-with-type-hints
   [gql-type & {:keys [many? required?]}]
