@@ -71,6 +71,12 @@
 ;;; --------------------------------------------------------------------------------
 ;;  Naming convention, policy, will make it configurable later.
 
+(defn ref-type->field-name
+  [ref-type]
+  (-> (or (sp/-get ref-type ::name)
+          ref-type)
+      csk/->camelCaseKeyword))
+
 (defn ref->field-type
   [{ref-type :type :as ref} &
    {:keys [in?]}]
@@ -93,12 +99,6 @@
               (str (name ref-type) "-in"))
             ref-type)
         csk/->PascalCaseKeyword)))
-
-(defn ref->field-name
-  [{ref-type :type :as ref}]
-  (-> (or (sp/-get ref-type ::name)
-          ref-type)
-      csk/->camelCaseKeyword))
 
 (defn ref->field
   [{ref-type :type
@@ -159,7 +159,7 @@
      (hash-map* :fields     (->> (sp/attribute-keys entity-type)
                                  (map canonicalise-ref)
                                  (map (fn [{ref-type :type :as ref}]
-                                        [(ref->field-name ref)
+                                        [(ref-type->field-name ref-type)
                                          (ref->field ref
                                                      :in?       in?
                                                      :required? (required? ref-type))]))
@@ -347,3 +347,39 @@
                :input-objects input-objects
                :queries       (endpoints->endpoints queries)
                :mutations     (endpoints->endpoints mutations))))
+
+;;; --------------------------------------------------------------------------------
+;;  Utils that can be used when configuring the LC integration
+
+(def enum->gql csk/->SCREAMING_SNAKE_CASE_STRING)
+(def enum->clj csk/->kebab-case-keyword)
+
+(defn gql->clj
+  [m]
+  ;; FIXME: this should also optionally take a map of args that can be
+  ;; used for name translations, etc.
+  (cske/transform-keys csk/->kebab-case-keyword m))
+
+(defn gql->entity
+  [entity-type record]
+  ;; Need to coerce the names and the types, need to check with the
+  ;; entity about doing extra conversions, like for enums.
+  (->> (sp/attribute-keys entity-type)
+       (map (fn [ref-type]
+              (let [field-name (ref-type->field-name ref-type)
+                    ->clj      (or (sp/-get ref-type ::->clj) identity)]
+                [ref-type (some-> (get record field-name)
+                                  ->clj)])))
+       (into {})))
+
+(defn entity->gql
+  [entity-type record]
+  ;; Need to coerce the names and the types, need to check with the
+  ;; entity about doing extra conversions, like for enums.
+  (->> (sp/attribute-keys entity-type)
+       (map (fn [ref-type]
+              (when-let [value (get record ref-type)]
+                (let [field-name (ref-type->field-name ref-type)
+                      ->gql      (or (sp/-get ref-type ::->gql) identity)]
+                  [field-name (some-> value ->gql)]))))
+       (into {})))
