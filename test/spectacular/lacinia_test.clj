@@ -23,17 +23,19 @@
            ::lc/type        :strange-string
            ::lc/description "Like a String but stranger.")
 (sp/scalar :scalar/boolean boolean?)
-(sp/scalar :scalar/integer integer?)
+(sp/scalar :scalar/integer integer?
+           ::lc/type       :int)
 (sp/scalar :scalar/ju-date java-util-date? ::sp/description "Java Date")
 
 ;;; --------------------------------------------------------------------------------
 
-(sp/attribute :attr/user-id     :scalar/string)
-(sp/attribute :attr/given-name  :scalar/string)
-(sp/attribute :attr/family-name :scalar/string)
-(sp/attribute :attr/dob         :scalar/ju-date)
-(sp/attribute :attr/height      :scalar/integer)
-(sp/attribute :attr/citizen?    :scalar/boolean
+(sp/attribute :attr/user-id       :scalar/string)
+(sp/attribute :attr/given-name    :scalar/string)
+(sp/attribute :attr/family-name   :scalar/string)
+(sp/attribute :attr/dob           :scalar/ju-date)
+(sp/attribute :attr/height        :scalar/integer)
+(sp/attribute :attr/qualification :scalar/string-2)
+(sp/attribute :attr/citizen?      :scalar/boolean
               ::lc/name :is-citizen)
 
 (sp/entity :entity/user
@@ -42,6 +44,7 @@
             :attr/family-name
             :attr/dob
             :attr/height
+            :attr/qualification
             :attr/citizen?]
            ::sp/identity-keys [:attr/user-id]
            ::sp/required-keys [:attr/family-name])
@@ -185,12 +188,13 @@
   (is (= (-> :entity/user
              lc/canonicalise-ref
              lc/entity-ref->object)
-         [:User {:fields {:userId     {:type :String}
-                          :givenName  {:type :String}
-                          :familyName {:type :String}
-                          :dob        {:type :JuDate}
-                          :height     {:type :Integer}
-                          :isCitizen  {:type :Boolean}}}]))
+         [:User {:fields {:userId        {:type :String}
+                          :givenName     {:type :String}
+                          :familyName    {:type :String}
+                          :dob           {:type :JuDate}
+                          :height        {:type :Int}
+                          :qualification {:type :StrangeString}
+                          :isCitizen     {:type :Boolean}}}]))
 
   (is (= (-> :entity/user-token
              lc/canonicalise-ref
@@ -200,20 +204,22 @@
   (is (= (-> :entity/user-values
              lc/canonicalise-ref
              lc/entity-ref->object)
-         [:UserValues {:fields {:givenName  {:type :String}
-                                :familyName {:type :String}
-                                :dob        {:type :JuDate}
-                                :height     {:type :Integer}
-                                :isCitizen  {:type :Boolean}}}]))
+         [:UserValues {:fields {:givenName     {:type :String}
+                                :familyName    {:type :String}
+                                :dob           {:type :JuDate}
+                                :height        {:type :Int}
+                                :qualification {:type :StrangeString}
+                                :isCitizen     {:type :Boolean}}}]))
 
   (is (= (-> :entity/user-values
              lc/canonicalise-ref
              (lc/entity-ref->object :in? true))
-         '[:UserValuesIn {:fields {:givenName  {:type :String}
-                                   :familyName {:type (non-null :String)}
-                                   :dob        {:type :JuDate}
-                                   :height     {:type :Integer}
-                                   :isCitizen  {:type :Boolean}}}]))
+         '[:UserValuesIn {:fields {:givenName     {:type :String}
+                                   :familyName    {:type (non-null :String)}
+                                   :dob           {:type :JuDate}
+                                   :height        {:type :Int}
+                                   :qualification {:type :StrangeString}
+                                   :isCitizen     {:type :Boolean}}}]))
 
   (is (= (-> :entity/user-role
              lc/canonicalise-ref
@@ -322,28 +328,31 @@
                                 :user2   {:type (non-null :User)}}
                        :description "Blah"}
              :User    {:fields
-                       {:userId     {:type :String}
-                        :givenName  {:type :String}
-                        :familyName {:type :String}
-                        :dob        {:type :JuDate}
-                        :height     {:type :Integer}
-                        :isCitizen  {:type :Boolean}}}
+                       {:userId        {:type :String}
+                        :givenName     {:type :String}
+                        :familyName    {:type :String}
+                        :dob           {:type :JuDate}
+                        :height        {:type :Int}
+                        :qualification {:type :StrangeString}
+                        :isCitizen     {:type :Boolean}}}
              :UserRole {:fields {:userId   {:type :String}
                                  :userRole {:type :UserRole}}
                         :description "Links a user to a Role they can perform."}}))
     (is (= input-objects
-           '{:UserIn       {:fields {:userId     {:type (non-null :String)}
-                                     :givenName  {:type :String}
-                                     :familyName {:type (non-null :String)}
-                                     :dob        {:type :JuDate}
-                                     :height     {:type :Integer}
-                                     :isCitizen  {:type :Boolean}}}
+           '{:UserIn       {:fields {:userId        {:type (non-null :String)}
+                                     :givenName     {:type :String}
+                                     :familyName    {:type (non-null :String)}
+                                     :dob           {:type :JuDate}
+                                     :height        {:type :Int}
+                                     :qualification {:type :StrangeString}
+                                     :isCitizen     {:type :Boolean}}}
              :UserTokenIn  {:fields {:userId {:type (non-null :String)}}}
-             :UserValuesIn {:fields {:givenName  {:type :String}
-                                     :familyName {:type (non-null :String)}
-                                     :dob        {:type :JuDate}
-                                     :height     {:type :Integer}
-                                     :isCitizen  {:type :Boolean}}}}))
+             :UserValuesIn {:fields {:givenName     {:type :String}
+                                     :familyName    {:type (non-null :String)}
+                                     :dob           {:type :JuDate}
+                                     :height        {:type :Int}
+                                     :qualification {:type :StrangeString}
+                                     :isCitizen     {:type :Boolean}}}}))
     (is (= queries
            '{:fetchUser        {:type    :User
                                 :args    {:token {:type (non-null :UserTokenIn)}}
