@@ -310,8 +310,8 @@
 (deftest generate-schema-1
   (let [{:keys [enums objects input-objects
                 queries mutations]}
-        (lc/generate-schema {:enums     {:enum-1 {:values      [:one :two :three]
-                                                  :description "Enum 1"}}
+        (lc/generate-schema {:enums    {:enum-1 {:values      [:one :two :three]
+                                                 :description "Enum 1"}}
                              :objects  {:object-1 {:description "Blah"
                                                    :fields      {:pattern :string
                                                                  :user    :entity/user
@@ -365,8 +365,8 @@
              :fetchUserRoles   {:type    (list (non-null :UserRole))
                                 :args    {:token {:type (non-null :UserTokenIn)}}
                                 :resolve fetch-user-roles}
-             :fetchUsersByRole {:type (list (non-null :User))
-                                :args {:roleType {:type :UserRole}}
+             :fetchUsersByRole {:type    (list (non-null :User))
+                                :args    {:roleType {:type :UserRole}}
                                 :resolve fetch-user-roles}}))
     (is (= mutations
            '{:addUser    {:type :User
