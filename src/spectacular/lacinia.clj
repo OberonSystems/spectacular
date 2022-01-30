@@ -148,22 +148,33 @@
 
 (defn entity-ref->object
   [{entity-type :type :as ref}
-   & {:keys [in?]}]
+   & {:keys [in? edges]}]
   (let [required? (if in?
                     (union (-> entity-type sp/identity-keys set)
                            (-> entity-type sp/required-keys set))
-                    #{})]
+                    #{})
+        ;;
+        attribute-fields (->> (sp/attribute-keys entity-type)
+                              (map canonicalise-ref)
+                              (map (fn [{ref-type :type :as ref}]
+                                     [(ref-type->field-name ref-type)
+                                      (ref->field ref
+                                                  :in?       in?
+                                                  :required? (required? ref-type))]))
+                              (into {}))
+        edge-fields       (when-not in?
+                            ;; Edge fields cannot be used with
+                            ;; input-objects.
+                            (some->> edges
+                                     (map (fn [[field ref]]
+                                            (let [{ref-type :type :as ref} (canonicalise-ref ref)]
+                                              [(ref-type->field-name field)
+                                               (ref->field ref)])))
+                                     (into {})))]
     ;; When generating objects from entities we use the Entity Type in
     ;; the "name" position.
     [(ref->field-type ref :in? in?)
-     (hash-map* :fields     (->> (sp/attribute-keys entity-type)
-                                 (map canonicalise-ref)
-                                 (map (fn [{ref-type :type :as ref}]
-                                        [(ref-type->field-name ref-type)
-                                         (ref->field ref
-                                                     :in?       in?
-                                                     :required? (required? ref-type))]))
-                                 (into {}))
+     (hash-map* :fields      (merge attribute-fields edge-fields)
                 :description (-description entity-type))]))
 
 (defn field-def->field
@@ -302,8 +313,17 @@
       (throw (ex-info (str "Can't generate schema as there are overlapping " type-name " definitions.")
                       {type-name overlapping})))))
 
+(defn edge-entity-refs
+  [edges]
+  (some->> edges
+           (mapcat val)
+           (map    second)
+           (map    canonicalise-ref)
+           (filter entity-ref?)
+           (map    entity-ref->object)))
+
 (defn generate-schema
-  [{:keys [enums objects input-objects
+  [{:keys [enums objects edges input-objects
            queries mutations]}]
   (let [endpoints   (merge queries mutations)
         ;;
@@ -326,22 +346,27 @@
                            (group-by :type)
                            (map      #(-> % second first)))
         _         (throw-overlapping :enums enums enum-refs)
-        enums     (some->> (concat (map #(-> % (key->as :type) enum->enum) enums)
-                               (map enum-ref->enum enum-refs))
-                           seq
-                       (sort-by first)
-                       (into    {}))
         ;;
-        objects (some->> (concat (map #(-> % (key->as :type) object->object) objects)
-                                 (map entity-ref->object output-entity-refs))
-                         seq
-                         (sort-by first)
-                         (into    {}))
+        enums         (some->> (concat (map #(-> % (key->as :type) enum->enum) enums)
+                                       (map enum-ref->enum enum-refs))
+                               seq
+                               (sort-by first)
+                               (into    {}))
         ;;
-        input-objects (->> (concat (map #(object->object     % :in? true) input-objects)
-                                   (map #(entity-ref->object % :in? true) input-entity-refs))
-                           (sort-by first)
-                           (into    {}))]
+        objects       (some->> (concat (map #(-> % (key->as :type) object->object)
+                                            objects)
+                                       (map #(entity-ref->object % :edges (get edges (:type %)))
+                                            output-entity-refs)
+                                       (edge-entity-refs edges))
+                               seq
+                               (sort-by first)
+                               (into    {}))
+        ;;
+        input-objects (some->> (concat (map #(object->object     % :in? true) input-objects)
+                                       (map #(entity-ref->object % :in? true) input-entity-refs))
+                               seq
+                               (sort-by first)
+                               (into    {}))]
     (hash-map* :enums         enums
                :objects       objects
                :input-objects input-objects

@@ -375,3 +375,24 @@
                           :args {:record {:type (non-null :UserIn)}}}
              :removeUser {:type :Boolean
                           :args {:record {:type (non-null :UserTokenIn)}}}}))))
+
+(deftest generate-schema-with-edges
+  []
+  ;; Testing that :objects with resolvers get merged in correctly.
+  (is (= (lc/generate-schema {:edges   {:entity/user {:user-roles {:type    [:entity/user-role]
+                                                                   :resolve 'users-user-roles}}}
+                              :queries {:fetch-user {:type    [:entity/user]
+                                                     :resolve 'fetch-users}}})
+         '{:objects {:User {:fields
+                            {:userId        {:type :String}
+                             :givenName     {:type :String}
+                             :familyName    {:type :String}
+                             :dob           {:type :JuDate}
+                             :height        {:type :Int}
+                             :qualification {:type :StrangeString}
+                             :isCitizen     {:type :Boolean}
+                             :userRoles     {:type        (list (non-null :UserRole))
+                                             :description "Links a user to a Role they can perform."
+                                             :resolve     users-user-roles}}}}
+           :queries {:fetchUser {:type    (list (non-null :User))
+                                 :resolve fetch-users}}})))
