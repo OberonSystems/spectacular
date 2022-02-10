@@ -320,7 +320,7 @@
            (map    second)
            (map    canonicalise-ref)
            (filter entity-ref?)
-           (map    entity-ref->object)))
+           (map    #(entity-ref->object % :edges (get edges (:type %))))))
 
 (defn generate-schema
   [{:keys [enums objects edges input-objects
