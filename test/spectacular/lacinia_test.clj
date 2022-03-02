@@ -392,6 +392,9 @@
                              :isCitizen     {:type :Boolean}
                              :userRoles     {:type        (list (non-null :UserRole))
                                              :description "Links a user to a Role they can perform."
-                                             :resolve     users-user-roles}}}}
+                                             :resolve     users-user-roles}}}
+                     :UserRole {:fields       {:userId   {:type :String}
+                                               :userRole {:type :UserRole}}
+                                :description "Links a user to a Role they can perform."}}
            :queries {:fetchUser {:type    (list (non-null :User))
                                  :resolve fetch-users}}})))
