@@ -9,58 +9,58 @@
 
 ;; Ensure the stuff we want to add to the registtry is cleared out on
 ;; recompile.
-(sp/clear! :scalar :attr :entity)
+(sp/clear! :s :a :e)
 
 (defn java-util-date?
   [d]
   (instance? java.util.Date d))
 
 ;; Some common scalars that we'll use in subsequent tests
-(sp/scalar :scalar/string   string? ::sp/description "Non Blank String")
-(sp/scalar :scalar/string-2 string?
+(sp/scalar :s/string        string? ::sp/description "Non Blank String")
+(sp/scalar :s/string-2      string?
            ::sp/description "Non Blank String"
            ;;
            ::lc/type        :strange-string
            ::lc/description "Like a String but stranger.")
-(sp/scalar :scalar/boolean boolean?)
-(sp/scalar :scalar/integer integer?
-           ::lc/type       :int)
-(sp/scalar :scalar/ju-date java-util-date? ::sp/description "Java Date")
+(sp/scalar :s/boolean boolean?)
+(sp/scalar :s/integer integer?
+           ::lc/type :int)
+(sp/scalar :s/ju-date java-util-date? ::sp/description "Java Date")
 
 ;;; --------------------------------------------------------------------------------
 
-(sp/attribute :attr/user-id       :scalar/string)
-(sp/attribute :attr/given-name    :scalar/string)
-(sp/attribute :attr/family-name   :scalar/string)
-(sp/attribute :attr/dob           :scalar/ju-date)
-(sp/attribute :attr/height        :scalar/integer)
-(sp/attribute :attr/qualification :scalar/string-2)
-(sp/attribute :attr/citizen?      :scalar/boolean
+(sp/attribute :a/user-id       :s/string)
+(sp/attribute :a/given-name    :s/string)
+(sp/attribute :a/family-name   :s/string)
+(sp/attribute :a/dob           :s/ju-date)
+(sp/attribute :a/height        :s/integer)
+(sp/attribute :a/qualification :s/string-2)
+(sp/attribute :a/citizen?      :s/boolean
               ::lc/name :is-citizen)
 
-(sp/entity :entity/user
-           [:attr/user-id
-            :attr/given-name
-            :attr/family-name
-            :attr/dob
-            :attr/height
-            :attr/qualification
-            :attr/citizen?]
-           ::sp/identity-keys [:attr/user-id]
-           ::sp/required-keys [:attr/family-name])
+(sp/entity :e/user
+           [:a/user-id
+            :a/given-name
+            :a/family-name
+            :a/dob
+            :a/height
+            :a/qualification
+            :a/citizen?]
+           ::sp/identity-keys [:a/user-id]
+           ::sp/required-keys [:a/family-name])
 
-(sp/enum      :scalar/user-role [:one :two :three])
-(sp/attribute :attr/user-role :scalar/user-role)
+(sp/enum      :s/user-role [:one :two :three])
+(sp/attribute :a/user-role :s/user-role)
 
-(sp/entity :entity/user-role
-           [:attr/user-id
-            :attr/user-role]
-           ::sp/identity-keys [:attr/user-id :attr/user-role]
+(sp/entity :e/user-role
+           [:a/user-id
+            :a/user-role]
+           ::sp/identity-keys [:a/user-id :a/user-role]
            ;;
            ::lc/description "Links a user to a Role they can perform.")
 
-(sp/entity-token  :entity/user-token  :entity/user)
-(sp/entity-values :entity/user-values :entity/user)
+(sp/entity-token  :e/user-token  :e/user)
+(sp/entity-values :e/user-values :e/user)
 
 ;;; --------------------------------------------------------------------------------
 
@@ -72,51 +72,51 @@
   (are [lhs rhs] (= lhs (let [ref (-> rhs first lc/canonicalise-ref)
                               in? (-> rhs second)]
                           (lc/ref->field-type ref :in? in?)))
-    :StrangeString [:scalar/string-2 nil]
-    :StrangeString [:scalar/string-2 true]
+    :StrangeString [:s/string-2 nil]
+    :StrangeString [:s/string-2 true]
 
-    :UserRole   [:entity/user-role nil]
-    :UserRoleIn [:entity/user-role true]
+    :UserRole   [:e/user-role nil]
+    :UserRoleIn [:e/user-role true]
     ;;
-    :User   [:entity/user nil]
-    :UserIn [:entity/user true]
+    :User   [:e/user nil]
+    :UserIn [:e/user true]
     ;;
-    :UserToken   [:entity/user-token nil]
-    :UserTokenIn [:entity/user-token true]
+    :UserToken   [:e/user-token nil]
+    :UserTokenIn [:e/user-token true]
     ;;
-    :UserValues   [:entity/user-values nil]
-    :UserValuesIn [:entity/user-values true]))
+    :UserValues   [:e/user-values nil]
+    :UserValuesIn [:e/user-values true]))
 
 ;;; --------------------------------------------------------------------------------
 
 (deftest refs->fields
-  (is (= (-> :scalar/string lc/canonicalise-ref lc/ref->field)
+  (is (= (-> :s/string lc/canonicalise-ref lc/ref->field)
          {:type        :String
           :description "Non Blank String"}))
 
-  (is (= (lc/ref->field {:type        :scalar/string
+  (is (= (lc/ref->field {:type        :s/string
                          :description "Something Else"})
          {:type        :String
           :description "Something Else"}))
 
-  (is (= (-> :scalar/string-2 lc/canonicalise-ref lc/ref->field)
+  (is (= (-> :s/string-2 lc/canonicalise-ref lc/ref->field)
          {:type        :StrangeString
           :description "Like a String but stranger."}))
 
-  (is (= (-> :attr/user-id lc/canonicalise-ref lc/ref->field)
+  (is (= (-> :a/user-id lc/canonicalise-ref lc/ref->field)
          {:type :String}))
 
-  (is (= (lc/ref->field {:type        :attr/user-id
+  (is (= (lc/ref->field {:type        :a/user-id
                          :description "User ID"})
          {:type        :String
           :description "User ID"}))
 
-  (is (= (lc/ref->field {:type :attr/user-id}
+  (is (= (lc/ref->field {:type :a/user-id}
                         :required? true)
          {:type        '(non-null :String)}))
   ;;
   ;; Handling lists
-  (is (= (-> {:type [:scalar/string]}
+  (is (= (-> {:type [:s/string]}
              lc/canonicalise-ref
              lc/ref->field)
          {:type        '(list (non-null :String))
@@ -124,7 +124,7 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(sp/enum   :scalar/au-state-1 [:act :nsw :nt :qld :sa :tas :vic :wa]
+(sp/enum   :s/au-state-1 [:act :nsw :nt :qld :sa :tas :vic :wa]
            ;;
            ::sp/labels  {:qld "Queensland"
                          :nsw "New South Wales"
@@ -144,11 +144,11 @@
                          :wa  "WA"}
            ::sp/description "An Australian State or Territory")
 
-(sp/enum :scalar/au-state-2 [:act :nsw :nt :qld :sa :tas :vic :wa]
+(sp/enum :s/au-state-2 [:act :nsw :nt :qld :sa :tas :vic :wa]
          ::sp/description "An Australian State or Territory"
          ::lc/description "An Australian State or Territory for GQL.")
 
-(sp/enum :scalar/au-state-3 [:act :nsw :nt :qld :sa :tas :vic :wa]
+(sp/enum :s/au-state-3 [:act :nsw :nt :qld :sa :tas :vic :wa]
          ::sp/description  "An Australian State or Territory"
          ::lc/type        :aus-state
          ::lc/description "An Australian State or Territory for GQL, with a different key.")
@@ -162,22 +162,22 @@
                    :description "What evs"}])))
 
   (testing "SP Transforms"
-    (is (= (-> :scalar/au-state-1 lc/canonicalise-enum lc/enum-ref->enum)
+    (is (= (-> :s/au-state-1 lc/canonicalise-enum lc/enum-ref->enum)
            [:AuState1
             {:values [:ACT :NSW :NT :QLD :SA :TAS :VIC :WA],
              :description "An Australian State or Territory"}]))
 
-    (is (= (-> :scalar/au-state-2 lc/canonicalise-enum lc/enum-ref->enum)
+    (is (= (-> :s/au-state-2 lc/canonicalise-enum lc/enum-ref->enum)
            [:AuState2
             {:values [:ACT :NSW :NT :QLD :SA :TAS :VIC :WA],
              :description "An Australian State or Territory for GQL."}]))
 
-    (is (= (-> :scalar/au-state-3 lc/canonicalise-enum lc/enum-ref->enum)
+    (is (= (-> :s/au-state-3 lc/canonicalise-enum lc/enum-ref->enum)
            [:AusState
             {:values [:ACT :NSW :NT :QLD :SA :TAS :VIC :WA],
              :description "An Australian State or Territory for GQL, with a different key."}]))
 
-    (is (= (-> :scalar/user-role lc/canonicalise-enum lc/enum-ref->enum)
+    (is (= (-> :s/user-role lc/canonicalise-enum lc/enum-ref->enum)
            [:UserRole {:values [:ONE :TWO :THREE]}])))
 
   (testing "Can't Transform"
@@ -185,7 +185,7 @@
                  (lc/enum->enum :invalid)))))
 
 (deftest entity-refs->objects
-  (is (= (-> :entity/user
+  (is (= (-> :e/user
              lc/canonicalise-ref
              lc/entity-ref->object)
          [:User {:fields {:userId        {:type :String}
@@ -196,12 +196,12 @@
                           :qualification {:type :StrangeString}
                           :isCitizen     {:type :Boolean}}}]))
 
-  (is (= (-> :entity/user-token
+  (is (= (-> :e/user-token
              lc/canonicalise-ref
              lc/entity-ref->object)
          [:UserToken {:fields {:userId {:type :String}}}]))
 
-  (is (= (-> :entity/user-values
+  (is (= (-> :e/user-values
              lc/canonicalise-ref
              lc/entity-ref->object)
          [:UserValues {:fields {:givenName     {:type :String}
@@ -211,7 +211,7 @@
                                 :qualification {:type :StrangeString}
                                 :isCitizen     {:type :Boolean}}}]))
 
-  (is (= (-> :entity/user-values
+  (is (= (-> :e/user-values
              lc/canonicalise-ref
              (lc/entity-ref->object :in? true))
          '[:UserValuesIn {:fields {:givenName     {:type :String}
@@ -221,14 +221,14 @@
                                    :qualification {:type :StrangeString}
                                    :isCitizen     {:type :Boolean}}}]))
 
-  (is (= (-> :entity/user-role
+  (is (= (-> :e/user-role
              lc/canonicalise-ref
              lc/entity-ref->object)
          '[:UserRole {:fields {:userId   {:type :String}
                                :userRole {:type :UserRole}}
                       :description "Links a user to a Role they can perform."}]))
 
-  (is (= (-> :entity/user-role
+  (is (= (-> :e/user-role
              lc/canonicalise-ref
              (lc/entity-ref->object :in? true))
          '[:UserRoleIn {:fields {:userId   {:type (non-null :String)}
@@ -239,73 +239,73 @@
   (is (= (lc/object->object {:type        :object-1
                              :description "Blah"
                              :fields      {:pattern :string
-                                           :user    :entity/user
-                                           :user-2  {:type      :entity/user
+                                           :user    :e/user
+                                           :user-2  {:type      :e/user
                                                      :required? true}}})
          '[:Object1 {:fields {:pattern {:type :String}
                               :user    {:type :User}
                               :user2   {:type (non-null :User)}}
                      :description "Blah"}])))
 
-(sp/enum :scalar/enum-type-1 [:one  :two  :three])
-(sp/enum :scalar/enum-type-2 [:four :five :six])
+(sp/enum :s/enum-type-1 [:one  :two  :three])
+(sp/enum :s/enum-type-2 [:four :five :six])
 
-(sp/attribute :attr/enum-1 :scalar/enum-type-1)
-(sp/attribute :attr/enum-2 :scalar/enum-type-2)
-(sp/entity    :entity/grand-child [:attr/enum-1 :attr/enum-2])
+(sp/attribute :a/enum-1 :s/enum-type-1)
+(sp/attribute :a/enum-2 :s/enum-type-2)
+(sp/entity    :e/grand-child [:a/enum-1 :a/enum-2])
 
-(sp/attribute :attr/grand-child :entity/grand-child)
-(sp/entity    :entity/child      [:attr/grand-child])
+(sp/attribute :a/grand-child :e/grand-child)
+(sp/entity    :e/child       [:a/grand-child])
 
-(sp/attribute :attr/child  :entity/child)
-(sp/entity    :entity/parent [:attr/child])
+(sp/attribute :a/child  :e/child)
+(sp/entity    :e/parent [:a/child])
 
 (deftest referenced-entities
-  (is (= (lc/referenced-entity-types :entity/parent #{})
-         #{:entity/grand-child :entity/child}))
+  (is (= (lc/referenced-entity-types :e/parent #{})
+         #{:e/grand-child :e/child}))
 
-  (is (= (lc/referenced-enum-types :entity/grand-child)
-         #{:scalar/enum-type-1 :scalar/enum-type-2})))
+  (is (= (lc/referenced-enum-types :e/grand-child)
+         #{:s/enum-type-1 :s/enum-type-2})))
 
-(def +q1+ {:fetch-user       {:type     :entity/user
-                              :args     {:token {:type      :entity/user-token
+(def +q1+ {:fetch-user       {:type     :e/user
+                              :args     {:token {:type      :e/user-token
                                                  :required? true}}
                               :resolve  'fetch-user}
-           :fetch-user-by-id {:type     :entity/user
+           :fetch-user-by-id {:type     :e/user
                               :args     {:user-id :string}
                               :resolve  'fetch-user}
-           :fetch-users      {:type     [:entity/user]
+           :fetch-users      {:type     [:e/user]
                               :resolve  'fetch-user}
            ;;
-           :fetch-user-roles    {:type     [:entity/user-role]
-                                 :args     {:token {:type      :entity/user-token
+           :fetch-user-roles    {:type     [:e/user-role]
+                                 :args     {:token {:type      :e/user-token
                                                     :required? true}}
                                  :resolve  'fetch-user-roles}
-           :fetch-users-by-role {:type     [:entity/user]
-                                 :args     {:role-type {:type      :scalar/user-role
+           :fetch-users-by-role {:type     [:e/user]
+                                 :args     {:role-type {:type      :s/user-role
                                                         :required? true}}
                                  :resolve  'fetch-user-roles}})
 
-(def +m1+ {:add-user    {:type :entity/user
-                         :args {:record {:type      :entity/user-values
+(def +m1+ {:add-user    {:type :e/user
+                         :args {:record {:type      :e/user-values
                                          :required? true}}}
-           :modify-user {:type :entity/user
-                         :args {:record {:type      :entity/user
+           :modify-user {:type :e/user
+                         :args {:record {:type      :e/user
                                          :required? true}}}
            :remove-user {:type :boolean
-                         :args {:record {:type      :entity/user-token
+                         :args {:record {:type      :e/user-token
                                          :required? true}}}})
 
 (deftest endpoint-refs
   (is (= (lc/endpoint-types->refs (merge +q1+ +m1+))
-         [{:type :entity/user}
-          {:type :entity/user-role :many? true}]))
+         [{:type :e/user}
+          {:type :e/user-role :many? true}]))
 
   (is (= (lc/endpoint-args->refs (merge +q1+ +m1+))
-         [{:type :entity/user        :required? true}
-          {:type :entity/user-token  :required? true}
-          {:type :entity/user-values :required? true}
-          {:type :scalar/user-role   :required? true}])))
+         [{:type :e/user        :required? true}
+          {:type :e/user-token  :required? true}
+          {:type :e/user-values :required? true}
+          {:type :s/user-role   :required? true}])))
 
 (deftest generate-schema-1
   (let [{:keys [enums objects input-objects
@@ -314,8 +314,8 @@
                                                  :description "Enum 1"}}
                              :objects  {:object-1 {:description "Blah"
                                                    :fields      {:pattern :string
-                                                                 :user    :entity/user
-                                                                 :user-2  {:type      :entity/user
+                                                                 :user    :e/user
+                                                                 :user-2  {:type      :e/user
                                                                            :required? true}}}}
                              :queries   +q1+
                              :mutations +m1+})]
@@ -377,11 +377,10 @@
                           :args {:record {:type (non-null :UserTokenIn)}}}}))))
 
 (deftest generate-schema-with-edges
-  []
   ;; Testing that :objects with resolvers get merged in correctly.
-  (is (= (lc/generate-schema {:edges   {:entity/user {:user-roles {:type    [:entity/user-role]
-                                                                   :resolve 'users-user-roles}}}
-                              :queries {:fetch-user {:type    [:entity/user]
+  (is (= (lc/generate-schema {:edges   {:e/user {:user-roles {:type    [:e/user-role]
+                                                              :resolve 'users-user-roles}}}
+                              :queries {:fetch-user {:type    [:e/user]
                                                      :resolve 'fetch-users}}})
          '{:objects {:User {:fields
                             {:userId        {:type :String}
