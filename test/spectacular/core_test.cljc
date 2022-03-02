@@ -34,13 +34,15 @@
 
 ;;; Common Attributes
 
-(sp/attribute :a/unit-no   :s/string   ::sp/label "Unit No")
-(sp/attribute :a/street-no :s/string   ::sp/label "Street No")
-(sp/attribute :a/street    :s/string   ::sp/label "Street")
-(sp/attribute :a/state     :s/au-state ::sp/label "State")
+(sp/attribute :a/unit-no       :s/string   ::sp/label "Unit No"       ::sp/optional? true)
+(sp/attribute :a/building-name :s/string   ::sp/label "Building Name" ::sp/optional? true)
+(sp/attribute :a/street-no     :s/string   ::sp/label "Street No")
+(sp/attribute :a/street        :s/string   ::sp/label "Street")
+(sp/attribute :a/state         :s/au-state ::sp/label "State")
 
 (sp/entity :e/address
            [:a/unit-no
+            :a/building-name
             :a/street-no
             :a/street
             :a/state]
@@ -67,7 +69,12 @@
     (is (s/valid? :a/street-no "asdf"))
 
     (is (= (sp/label :a/state) "State"))
-    (is (s/valid? :a/state :qld))))
+    (is (s/valid? :a/state :qld)))
+
+  (testing "Optional Attributes"
+    (is (= (sp/label :a/unit-no) "Unit No"))
+    (is (s/valid? :a/unit-no "asdf"))
+    (is (s/valid? :a/unit-no nil))))
 
 (deftest entities
   (testing "Basic Usage"
@@ -75,11 +82,30 @@
     (is (= (sp/description :e/address) "An Australian Address"))
     ;;
     (is (= (sp/attribute-keys :e/address) [:a/unit-no
+                                           :a/building-name
                                            :a/street-no
                                            :a/street
                                            :a/state]))
     (is (nil? (sp/identity-keys :e/address)))
-    (is (= (sp/required-keys :e/address) [:a/state]))))
+    (is (= (sp/required-keys :e/address) [:a/state])))
+
+  (testing "Validity"
+    (is (s/valid? :e/address {:a/unit-no       nil
+                              :a/building-name nil
+                              :a/street-no     "1"
+                              :a/street        "Smith"
+                              :a/state         :nsw}))
+
+    (is (s/valid? :e/address {:a/building-name nil
+                              :a/street-no     "1"
+                              :a/street        "Smith"
+                              :a/state         :nsw}))
+
+    (is (s/valid? :e/address {:a/building-name "The Manor"
+                              :a/unit-no       "B"
+                              :a/street-no     "1"
+                              :a/street        "Smith"
+                              :a/state         :nsw}))))
 
 ;;;
 
