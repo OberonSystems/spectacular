@@ -44,6 +44,8 @@
   [k]
   (= (-get k ::kind) ::scalar))
 
+(def !scalar? (complement scalar?))
+
 (defn enum?
   [k]
   (and (scalar? k)
@@ -80,7 +82,7 @@
 (defn get-attribute-type
   [k]
   (when (attr? k)
-    (-get k ::scalar-key)))
+    (-get k ::attribute-type)))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -93,9 +95,9 @@
   [k]
   (-get k ::values))
 
-(defn scalar-key
+(defn attribute-type
   [k]
-  (-get k ::scalar-key))
+  (-get k ::attribute-type))
 
 (defn description
   [k]
@@ -162,17 +164,49 @@
                                  ::enum?  true)))))
 
 (defmacro attribute
-  [k sk & {:keys [::nilable?] :as info}]
+  [k t & {is-set?    ::set?
+          is-vector? ::vector?
+          nilable?   ::nilable?
+          ;;
+          count     ::count
+          min-count ::min-count
+          max-count ::max-count
+          :as info}]
   (throw-when-registered ::attribute k)
-  (when-not (or (scalar? sk)
-                (entity? sk))
-    (throw (ex-info "Attribute must be associated with a registered scalar or entity." {:attribute-key k :scalar-key sk})))
-  (let [info (cond-> (assoc info ::scalar-key sk)
-               nilable? (assoc ::nilable? true))]
+  (when-let [error (cond
+                     (not (or (scalar? t) (entity? t)))
+                     "Attribute must be associated with a registered scalar or entity."
+                     ;;
+                     (and is-set? (!scalar? t))
+                     "The set? flag can only be used with scalar attributes."
+                     ;;
+                     (and count (or min-count max-count))
+                     "Cannot pass count and min/max-count."
+                     ;;
+                     (and count (zero? count))
+                     "Cannot specify a count of zero. Use nilable? instead."
+
+                     (and min-count (zero? min-count))
+                     "Cannot specify a min-count of zero. Use nilable? instead."
+                     ;;
+                     (and (or min-count max-count)
+                          (not (and min-count max-count)))
+                     "Must provide both min/max count or neither.")]
+    (throw (ex-info error {:attribute-key  k
+                           :attribute-type t
+                           ;;
+                           :info info})))
+  (let [info      (assoc info ::attribute-type t)
+        ;; We always insist on non empty lists.
+        min-count (when-not count (or min-count 1))
+        pred      (cond
+                    is-set?    `(s/every ~t :kind set?    :distinct true :count ~count :min-count ~min-count :max-count ~max-count)
+                    is-vector? `(s/every ~t :kind vector?                :count ~count :min-count ~min-count :max-count ~max-count)
+                    :else t)]
     `(do
        ~(if nilable?
-          `(s/def ~k (s/nilable (s/get-spec ~sk)))
-          `(s/def ~k (s/get-spec ~sk)))
+          `(s/def ~k (s/nilable ~pred))
+          `(s/def ~k ~pred))
        (-set ~k ::attribute ~info))))
 
 (defmacro entity

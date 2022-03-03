@@ -10,6 +10,7 @@
 
 ;; Some common scalars that we'll use in subsequent tests
 (sp/scalar :s/string  string? ::sp/description "Non Blank String")
+(sp/scalar :s/keyword keyword?)
 (sp/scalar :s/boolean boolean?)
 (sp/scalar :s/integer integer?)
 
@@ -49,11 +50,18 @@
            ::sp/label         "Address"
            ::sp/description   "An Australian Address")
 
+(sp/attribute :a/integers     :s/integer ::sp/label "Integers"     ::sp/set?    true ::sp/nilable? true)
+(sp/attribute :a/strings      :s/string  ::sp/label "Strings"      ::sp/vector? true ::sp/nilable? true)
+(sp/attribute :a/string-tags  :s/string  ::sp/label "String Tags"  ::sp/set?    true)
+(sp/attribute :a/keyword-tags :s/keyword ::sp/label "Keyword Tags" ::sp/set?    true)
+(sp/attribute :a/addresses    :e/address ::sp/label "Addresses"    ::sp/vector? true ::sp/min-count 2 ::sp/max-count 5)
+
 (deftest scalars
   (testing "Basic Usage"
-    (is (= (sp/description :s/string)))
+    (is (= (sp/description :s/string) "Non Blank String"))
     (is (sp/scalar? :s/string))
-    (is (s/valid? :s/string "asd"))))
+    (is (s/valid? :s/string "asd"))
+    (is (-> (s/valid? :s/string 12) not))))
 
 (deftest enums
   (testing "Basic Usage"
@@ -73,7 +81,37 @@
   (testing "Nilable Attributes"
     (is (= (sp/label :a/unit-no) "Unit No"))
     (is (s/valid? :a/unit-no "asdf"))
-    (is (s/valid? :a/unit-no nil))))
+    (is (s/valid? :a/unit-no nil)))
+
+  (testing "Basic Set/Vector Usage"
+    (is (s/valid? :a/integers #{1 2 3}))
+    (is (s/valid? :a/integers nil))
+
+    (is (s/valid? :a/strings ["one" "two" "three"]))
+    (is (s/valid? :a/strings nil))
+
+    (is (sp/attr? :a/string-tags))
+    (is (s/valid? :a/string-tags #{"asd" "blah"})))
+
+  (testing "Entity Set/Vector Usage"
+    (is (sp/attr? :a/addresses))
+    (is (s/valid? :a/addresses [{:a/unit-no       nil
+                                 :a/building-name nil
+                                 :a/street-no     "3"
+                                 :a/street        "Smith St"
+                                 :a/state         :nsw}
+                                {:a/unit-no       nil
+                                 :a/building-name nil
+                                 :a/street-no     "9"
+                                 :a/street        "Smith St"
+                                 :a/state         :nsw}]))
+
+    (is (-> (s/valid? :a/addresses [{:a/unit-no       nil
+                                     :a/building-name nil
+                                     :a/street-no     "3"
+                                     :a/street        "Smith St"
+                                     :a/state         :nsw}])
+            not))))
 
 (deftest entities
   (testing "Basic Usage"
@@ -139,3 +177,16 @@
 
   (is (= (sp/value-keys :e/person-values)
          [:a/given-name :a/family-name])))
+
+;;; --------------------------------------------------------------------------------
+;;  Snippets to help wit debugging below here
+
+(comment
+  (do
+    (sp/clear! :s :a :e)
+    (sp/scalar :s/string  string? ::sp/description "Non Blank String")
+    (sp/scalar :s/keyword keyword?)
+    (sp/scalar :s/boolean boolean?)
+    (sp/scalar :s/integer integer?)
+
+    (macroexpand '(sp/attribute :a/integers     :s/integer ::sp/label "Integers"     ::sp/set?    true ::sp/nilable? true))))
