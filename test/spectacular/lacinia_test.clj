@@ -2,7 +2,8 @@
   (:require [clojure.test :refer :all]
             [clojure.spec.alpha :as s]
             [clojure.data :refer [diff]]
-            [clojure.pprint :refer [pprint]])
+            [clojure.pprint :refer [pprint]]
+            [clojure.string :as str])
   (:require [spectacular.core    :as sp]
             [spectacular.lacinia :as lc]
             :reload))
@@ -23,20 +24,18 @@
            ::lc/type        :strange-string
            ::lc/description "Like a String but stranger.")
 (sp/scalar :s/boolean boolean?)
-(sp/scalar :s/integer integer?
-           ::lc/type :int)
+(sp/scalar :s/integer integer? ::lc/type :int)
 (sp/scalar :s/ju-date java-util-date? ::sp/description "Java Date")
 
 ;;; --------------------------------------------------------------------------------
 
 (sp/attribute :a/user-id       :s/string)
-(sp/attribute :a/given-name    :s/string)
+(sp/attribute :a/given-name    :s/string   ::sp/nilable? true)
 (sp/attribute :a/family-name   :s/string)
-(sp/attribute :a/dob           :s/ju-date)
-(sp/attribute :a/height        :s/integer)
-(sp/attribute :a/qualification :s/string-2)
-(sp/attribute :a/citizen?      :s/boolean
-              ::lc/name :is-citizen)
+(sp/attribute :a/dob           :s/ju-date  ::sp/nilable? true)
+(sp/attribute :a/height        :s/integer  ::sp/nilable? true)
+(sp/attribute :a/qualification :s/string-2 ::sp/nilable? true)
+(sp/attribute :a/citizen?      :s/boolean  ::sp/nilable? true ::lc/name :is-citizen)
 
 (sp/entity :e/user
            [:a/user-id
@@ -46,8 +45,7 @@
             :a/height
             :a/qualification
             :a/citizen?]
-           ::sp/identity-keys [:a/user-id]
-           ::sp/required-keys [:a/family-name])
+           ::sp/identity-keys [:a/user-id])
 
 (sp/enum      :s/user-role [:one :two :three])
 (sp/attribute :a/user-role :s/user-role)
@@ -111,9 +109,9 @@
          {:type        :String
           :description "User ID"}))
 
-  (is (= (lc/ref->field {:type :a/user-id}
-                        :required? true)
-         {:type        '(non-null :String)}))
+  (is (= (lc/ref->field {:type :a/user-id :required? true}
+                        :in? true)
+         {:type '(non-null :String)}))
   ;;
   ;; Handling lists
   (is (= (-> {:type [:s/string]}
@@ -236,16 +234,25 @@
                         :description "Links a user to a Role they can perform."}])))
 
 (deftest objects->objects
-  (is (= (lc/object->object {:type        :object-1
-                             :description "Blah"
-                             :fields      {:pattern :string
-                                           :user    :e/user
-                                           :user-2  {:type      :e/user
-                                                     :required? true}}})
-         '[:Object1 {:fields {:pattern {:type :String}
-                              :user    {:type :User}
-                              :user2   {:type (non-null :User)}}
-                     :description "Blah"}])))
+  ;; Need another test here for input-objects that respect the
+  ;; required flag on the fields.
+  (let [object {:type        :object-1
+                :description "Blah"
+                :fields      {:pattern :string
+                              :user    :e/user
+                              :user-2  {:type      :e/user
+                                        :required? true}}}]
+    (is (= (lc/object->object object)
+           '[:Object1 {:fields {:pattern {:type :String}
+                                :user    {:type :User}
+                                :user2   {:type :User}}
+                       :description "Blah"}]))
+
+    (is (= (lc/object->object object :in? true)
+           '[:Object1 {:fields {:pattern {:type :String}
+                                :user    {:type :UserIn}
+                                :user2   {:type (not-null :UserIn)}}
+                       :description "Blah"}]))))
 
 (sp/enum :s/enum-type-1 [:one  :two  :three])
 (sp/enum :s/enum-type-2 [:four :five :six])
@@ -315,8 +322,7 @@
                              :objects  {:object-1 {:description "Blah"
                                                    :fields      {:pattern :string
                                                                  :user    :e/user
-                                                                 :user-2  {:type      :e/user
-                                                                           :required? true}}}}
+                                                                 :user-2  :e/user}}}
                              :queries   +q1+
                              :mutations +m1+})]
     (is (= enums
@@ -325,7 +331,7 @@
     (is (= objects
            '{:Object1 {:fields {:pattern {:type :String}
                                 :user    {:type :User}
-                                :user2   {:type (non-null :User)}}
+                                :user2   {:type :User}}
                        :description "Blah"}
              :User    {:fields
                        {:userId        {:type :String}
@@ -398,3 +404,29 @@
                                 :description "Links a user to a Role they can perform."}}
            :queries {:fetchUser {:type    (list (non-null :User))
                                  :resolve fetch-users}}})))
+
+(deftest entity-translations
+  (is (= (lc/gql->entity :e/user
+                         {:userId    "Test"
+                          :givenName "Given Name"
+                          :isCitizen true})
+         {:a/user-id       "Test"
+          :a/given-name    "Given Name"
+          :a/family-name   nil
+          :a/dob           nil
+          :a/height        nil
+          :a/qualification nil
+          :a/citizen?      true}))
+
+  (is (= (lc/entity->gql :e/user
+                         {:a/user-id       "Test"
+                          :a/given-name    "Given Name"
+                          :a/family-name   nil
+                          :a/dob           nil
+                          :a/height        nil
+                          :a/qualification nil
+                          :a/citizen?      true
+                          :a/user-roles    nil})
+         {:userId    "Test"
+          :givenName "Given Name"
+          :isCitizen true})))

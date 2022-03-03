@@ -80,15 +80,16 @@
 (defn ref->field-type
   [{ref-type :type :as ref} &
    {:keys [in?]}]
-
   ;; If ref-type is a registered spec then we need to check for
   ;; registered gql mappings, either directly or for attributes then
   ;; for it's associated scalar.
   (let [ref-type (cond
                    (sp/attr? ref-type)
-                   (let [scalar-key (sp/-get ref-type ::sp/scalar-key)]
-                     (or (sp/-get scalar-key ::type)
-                         scalar-key))
+                   (let [attribute-type (sp/-get ref-type ::sp/attribute-type)]
+                     ;; Check for an lacinia specialised type first,
+                     ;; or the attribute-type otherwise.
+                     (or (sp/-get attribute-type ::type)
+                         attribute-type))
                    ;;
                    (sp/exists? ref-type)
                    (or (sp/-get ref-type ::type)
@@ -102,13 +103,16 @@
 
 (defn ref->field
   [{ref-type :type
-    :keys    [description many? resolve]
+    :keys    [description required? many? resolve]
     :as      ref}
-   & {:keys [in? required?]}]
+   & {:keys [in?]}]
   (hash-map* :type        (-> ref
-                              (ref->field-type      :in? in?)
+                              (ref->field-type      :in?       in?)
                               (wrap-with-type-hints :many?     many?
-                                                    :required? required?))
+                                                    :required? (when in?
+                                                                 (or required?
+                                                                     (and (sp/attr? ref-type)
+                                                                          (-> ref-type (sp/-get ::sp/nilable?) not))))))
              :description (or description
                               (sp/-get ref-type ::description)
                               (sp/-get ref-type ::sp/description))
@@ -149,18 +153,11 @@
 (defn entity-ref->object
   [{entity-type :type :as ref}
    & {:keys [in? edges]}]
-  (let [required? (if in?
-                    (union (-> entity-type sp/identity-keys set)
-                           (-> entity-type sp/required-keys set))
-                    #{})
-        ;;
-        attribute-fields (->> (sp/attribute-keys entity-type)
+  (let [attribute-fields (->> (sp/attribute-keys entity-type)
                               (map canonicalise-ref)
                               (map (fn [{ref-type :type :as ref}]
                                      [(ref-type->field-name ref-type)
-                                      (ref->field ref
-                                                  :in?       in?
-                                                  :required? (required? ref-type))]))
+                                      (ref->field ref :in? in?)]))
                               (into {}))
         edge-fields       (when-not in?
                             ;; Edge fields cannot be used with
