@@ -161,16 +161,18 @@
                                  ::enum?  true)))))
 
 (defmacro attribute
-  [k sk & {:keys [::optional?] :as info}]
+  [k sk & {:keys [::nilable?] :as info}]
   (throw-when-registered ::attribute k)
   (when-not (or (scalar? sk)
                 (entity? sk))
     (throw (ex-info "Attribute must be associated with a registered scalar or entity." {:attribute-key k :scalar-key sk})))
-  `(do
-     ~(if optional?
-        `(s/def ~k (s/nilable (s/get-spec ~sk)))
-        `(s/def ~k (s/get-spec ~sk)))
-     (-set ~k ::attribute (assoc ~info ::scalar-key ~sk))))
+  (let [info (cond-> (assoc info ::scalar-key sk)
+               nilable? (assoc ::nilable? true))]
+    `(do
+       ~(if nilable?
+          `(s/def ~k (s/nilable (s/get-spec ~sk)))
+          `(s/def ~k (s/get-spec ~sk)))
+       (-set ~k ::attribute ~info))))
 
 (defmacro entity
   [k attribute-keys & {:keys [::identity-keys ::required-keys]

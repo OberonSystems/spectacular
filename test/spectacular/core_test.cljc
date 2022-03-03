@@ -34,8 +34,8 @@
 
 ;;; Common Attributes
 
-(sp/attribute :a/unit-no       :s/string   ::sp/label "Unit No"       ::sp/optional? true)
-(sp/attribute :a/building-name :s/string   ::sp/label "Building Name" ::sp/optional? true)
+(sp/attribute :a/unit-no       :s/string   ::sp/label "Unit No"       ::sp/nilable? true)
+(sp/attribute :a/building-name :s/string   ::sp/label "Building Name" ::sp/nilable? true)
 (sp/attribute :a/street-no     :s/string   ::sp/label "Street No")
 (sp/attribute :a/street        :s/string   ::sp/label "Street")
 (sp/attribute :a/state         :s/au-state ::sp/label "State")
@@ -71,7 +71,7 @@
     (is (= (sp/label :a/state) "State"))
     (is (s/valid? :a/state :qld)))
 
-  (testing "Optional Attributes"
+  (testing "Nilable Attributes"
     (is (= (sp/label :a/unit-no) "Unit No"))
     (is (s/valid? :a/unit-no "asdf"))
     (is (s/valid? :a/unit-no nil))))
