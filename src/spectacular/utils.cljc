@@ -17,7 +17,7 @@
                 [{} params])]
    (->> tail
         (partition 2)
-        (filter second)
+        (remove #(-> % second nil?))
         (map vec)
         (into head))))
 
