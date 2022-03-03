@@ -46,7 +46,6 @@
             :a/street-no
             :a/street
             :a/state]
-           ::sp/required-keys [:a/state]
            ::sp/label         "Address"
            ::sp/description   "An Australian Address")
 
@@ -86,8 +85,7 @@
                                            :a/street-no
                                            :a/street
                                            :a/state]))
-    (is (nil? (sp/identity-keys :e/address)))
-    (is (= (sp/required-keys :e/address) [:a/state])))
+    (is (nil? (sp/identity-keys :e/address))))
 
   (testing "Validity"
     (is (s/valid? :e/address {:a/unit-no       nil
@@ -97,6 +95,7 @@
                               :a/state         :nsw}))
 
     (is (s/valid? :e/address {:a/building-name nil
+                              :a/unit-no       nil
                               :a/street-no     "1"
                               :a/street        "Smith"
                               :a/state         :nsw}))
@@ -117,8 +116,7 @@
            [:a/person-id
             :a/given-name
             :a/family-name]
-           ::sp/identity-keys [:a/person-id]
-           ::sp/required-keys [:a/family-name])
+           ::sp/identity-keys [:a/person-id])
 
 (sp/entity-token  :e/person-token  :e/person)
 (sp/entity-values :e/person-values :e/person)

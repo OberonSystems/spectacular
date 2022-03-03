@@ -57,6 +57,11 @@
   [k]
   (= (-get k ::kind) ::attribute))
 
+(defn attr-nilable?
+  [k]
+  (and (attr? k)
+       (-get k ::nilable?)))
+
 (defn get-scalar
   [k]
   (when (scalar? k)
@@ -103,10 +108,6 @@
 (defn identity-keys
   [k]
   (-get k ::identity-keys))
-
-(defn required-keys
-  [k]
-  (-get k ::required-keys))
 
 (defn value-keys
   [k]
@@ -175,21 +176,16 @@
        (-set ~k ::attribute ~info))))
 
 (defmacro entity
-  [k attribute-keys & {:keys [::identity-keys ::required-keys]
+  [k attribute-keys & {:keys [::identity-keys]
                        :as info}]
   (throw-when-registered ::entity k)
   (let [attribute-ks (some-> attribute-keys seq vec)
         identity-ks  (some-> identity-keys  seq vec)
-        required-ks  (some-> required-keys  seq vec)
         ;;
         attribute-set (set attribute-ks)
         identity-set  (set identity-ks)
-        required-set  (set required-keys)
         ;;
-        value-ks (some->> attribute-ks (remove identity-set) seq vec)
-        ;;
-        sp-required-ks (some-> (union      identity-set  required-set)   seq vec)
-        sp-optional-ks (some-> (difference attribute-set sp-required-ks) seq vec)]
+        value-ks (some->> attribute-ks (remove identity-set) seq vec)]
     (when-let [[error info] (cond
                               (empty? attribute-ks)
                               ["Cannot register and entity without attributes."]
@@ -204,24 +200,19 @@
                               (not (subset? identity-set attribute-set))
                               ["Identity Keys must be a subset of Attribute Keys"]
 
-                              (not (subset? required-set attribute-set))
-                              ["Required Keys must be a subset of Attribute Keys"]
-
-                              (not (empty? (intersection identity-set required-set)))
-                              ["Identity Keys and Required Keys cannot intersect."])]
+                              (some attr-nilable? identity-ks)
+                              ["Identity Keys cannot be nilable?"])]
       (throw (ex-info error {:entity-key     k
                              ;;
                              :attribute-keys attribute-keys
                              :identity-keys  identity-keys
-                             :required-keys  required-keys
                              ;;
                              :info info})))
     `(do
-       (s/def ~k (s/keys :req ~sp-required-ks :opt ~sp-optional-ks))
+       (s/def ~k (s/keys :req ~attribute-ks))
        (-set  ~k ::entity (assoc ~info
                                  ::attribute-keys ~attribute-ks
                                  ::identity-keys  ~identity-ks
-                                 ::required-keys  ~required-ks
                                  ::value-keys     ~value-ks)))))
 
 (defmacro entity-token
@@ -240,31 +231,23 @@
                                          ::attribute-keys ~identity-ks
                                          ;;
                                          ::token?         true
-                                         ::required-keys  ~identity-ks
                                          ::identity-keys  ~identity-ks)))))
 
 (defmacro entity-values
   [values-key entity-key & {:as info}]
   (throw-when-registered ::entity-values values-key)
-  (let [value-ks    (value-keys entity-key)
-        value-set   (set value-ks)
-        ;;
-        required-ks (some->> entity-key
-                             required-keys
-                             (filter #(contains? value-set %))
-                             seq
-                             vec)]
+  (let [value-ks  (value-keys entity-key)
+        value-set (set value-ks)]
     (when-not value-ks
       (ex-info "Cannot create a values-entity for an entity that does not have any value keys."
                {:values-key values-key
                 :entity-key entity-key
                 :info       info}))
     `(do
-       (s/def ~values-key (s/keys :opt ~value-ks))
+       (s/def ~values-key (s/keys :req ~value-ks))
        (-set  ~values-key ::entity (assoc ~info
                                           ::entity-key     ~entity-key
                                           ::attribute-keys ~value-ks
                                           ;;
                                           ::values?       true
-                                          ::required-keys ~required-ks
                                           ::value-keys    ~value-ks)))))
