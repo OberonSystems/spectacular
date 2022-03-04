@@ -112,7 +112,7 @@
                                                     :required? (when in?
                                                                  (or required?
                                                                      (and (sp/attr? ref-type)
-                                                                          (-> ref-type (sp/-get ::sp/nilable?) not))))))
+                                                                          (-> ref-type (sp/-get ::sp/optional?) not))))))
              :description (or description
                               (sp/-get ref-type ::description)
                               (sp/-get ref-type ::sp/description))

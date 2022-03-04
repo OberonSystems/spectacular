@@ -35,8 +35,8 @@
 
 ;;; Common Attributes
 
-(sp/attribute :a/unit-no       :s/string   ::sp/label "Unit No"       ::sp/nilable? true)
-(sp/attribute :a/building-name :s/string   ::sp/label "Building Name" ::sp/nilable? true)
+(sp/attribute :a/unit-no       :s/string   ::sp/label "Unit No"       ::sp/optional? true)
+(sp/attribute :a/building-name :s/string   ::sp/label "Building Name" ::sp/optional? true)
 (sp/attribute :a/street-no     :s/string   ::sp/label "Street No")
 (sp/attribute :a/street        :s/string   ::sp/label "Street")
 (sp/attribute :a/state         :s/au-state ::sp/label "State")
@@ -50,8 +50,8 @@
            ::sp/label         "Address"
            ::sp/description   "An Australian Address")
 
-(sp/attribute :a/integers     :s/integer ::sp/label "Integers"     ::sp/set?    true ::sp/nilable? true)
-(sp/attribute :a/strings      :s/string  ::sp/label "Strings"      ::sp/vector? true ::sp/nilable? true)
+(sp/attribute :a/integers     :s/integer ::sp/label "Integers"     ::sp/set?    true ::sp/optional? true)
+(sp/attribute :a/strings      :s/string  ::sp/label "Strings"      ::sp/vector? true ::sp/optional? true)
 (sp/attribute :a/string-tags  :s/string  ::sp/label "String Tags"  ::sp/set?    true)
 (sp/attribute :a/keyword-tags :s/keyword ::sp/label "Keyword Tags" ::sp/set?    true)
 (sp/attribute :a/addresses    :e/address ::sp/label "Addresses"    ::sp/vector? true ::sp/min-count 2 ::sp/max-count 5)
@@ -189,4 +189,4 @@
     (sp/scalar :s/boolean boolean?)
     (sp/scalar :s/integer integer?)
 
-    (macroexpand '(sp/attribute :a/integers     :s/integer ::sp/label "Integers"     ::sp/set?    true ::sp/nilable? true))))
+    (macroexpand '(sp/attribute :a/integers :s/integer ::sp/label "Integers" ::sp/set? true ::sp/optional? true))))

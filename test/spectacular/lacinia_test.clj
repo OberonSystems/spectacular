@@ -30,12 +30,12 @@
 ;;; --------------------------------------------------------------------------------
 
 (sp/attribute :a/user-id       :s/string)
-(sp/attribute :a/given-name    :s/string   ::sp/nilable? true)
+(sp/attribute :a/given-name    :s/string   ::sp/optional? true)
 (sp/attribute :a/family-name   :s/string)
-(sp/attribute :a/dob           :s/ju-date  ::sp/nilable? true)
-(sp/attribute :a/height        :s/integer  ::sp/nilable? true)
-(sp/attribute :a/qualification :s/string-2 ::sp/nilable? true)
-(sp/attribute :a/citizen?      :s/boolean  ::sp/nilable? true ::lc/name :is-citizen)
+(sp/attribute :a/dob           :s/ju-date  ::sp/optional? true)
+(sp/attribute :a/height        :s/integer  ::sp/optional? true)
+(sp/attribute :a/qualification :s/string-2 ::sp/optional? true)
+(sp/attribute :a/citizen?      :s/boolean  ::sp/optional? true ::lc/name :is-citizen)
 
 (sp/entity :e/user
            [:a/user-id
@@ -251,7 +251,7 @@
     (is (= (lc/object->object object :in? true)
            '[:Object1 {:fields {:pattern {:type :String}
                                 :user    {:type :UserIn}
-                                :user2   {:type (not-null :UserIn)}}
+                                :user2   {:type (non-null :UserIn)}}
                        :description "Blah"}]))))
 
 (sp/enum :s/enum-type-1 [:one  :two  :three])

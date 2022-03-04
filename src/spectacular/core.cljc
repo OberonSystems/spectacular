@@ -59,10 +59,10 @@
   [k]
   (= (-get k ::kind) ::attribute))
 
-(defn attr-nilable?
+(defn attr-optional?
   [k]
   (and (attr? k)
-       (-get k ::nilable?)))
+       (-get k ::optional?)))
 
 (defn get-scalar
   [k]
@@ -166,7 +166,7 @@
 (defmacro attribute
   [k t & {is-set?    ::set?
           is-vector? ::vector?
-          nilable?   ::nilable?
+          optional?  ::optional?
           ;;
           count     ::count
           min-count ::min-count
@@ -184,10 +184,10 @@
                      "Cannot pass count and min/max-count."
                      ;;
                      (and count (zero? count))
-                     "Cannot specify a count of zero. Use nilable? instead."
+                     "Cannot specify a count of zero. Use optional? instead."
 
                      (and min-count (zero? min-count))
-                     "Cannot specify a min-count of zero. Use nilable? instead."
+                     "Cannot specify a min-count of zero. Use optional? instead."
                      ;;
                      (and (or min-count max-count)
                           (not (and min-count max-count)))
@@ -204,7 +204,7 @@
                     is-vector? `(s/every ~t :kind vector?                :count ~count :min-count ~min-count :max-count ~max-count)
                     :else t)]
     `(do
-       ~(if nilable?
+       ~(if optional?
           `(s/def ~k (s/nilable ~pred))
           `(s/def ~k ~pred))
        (-set ~k ::attribute ~info))))
@@ -234,8 +234,8 @@
                               (not (subset? identity-set attribute-set))
                               ["Identity Keys must be a subset of Attribute Keys"]
 
-                              (some attr-nilable? identity-ks)
-                              ["Identity Keys cannot be nilable?"])]
+                              (some attr-optional? identity-ks)
+                              ["Identity Keys cannot be optional?"])]
       (throw (ex-info error {:entity-key     k
                              ;;
                              :attribute-keys attribute-keys
