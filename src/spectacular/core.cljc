@@ -59,10 +59,25 @@
   [k]
   (= (-get k ::kind) ::attribute))
 
+(defn throw-when-not-attr?
+  [k msg]
+  (when-not (attr? k)
+    (throw (ex-info msg {:k k}))))
+
+(defn attr-set?
+  [k]
+  (throw-when-not-attr? k "attr-set? can only be called on an attribute")
+  (-get k ::set?))
+
+(defn attr-vector?
+  [k]
+  (throw-when-not-attr? k "attr-vector? can only be called on an attribute")
+  (-get k ::vector?))
+
 (defn attr-optional?
   [k]
-  (and (attr? k)
-       (-get k ::optional?)))
+  (throw-when-not-attr? k "attr-optional? can only be called on an attribute")
+  (-get k ::optional?))
 
 (defn get-scalar
   [k]

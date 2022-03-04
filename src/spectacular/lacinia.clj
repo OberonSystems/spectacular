@@ -9,10 +9,10 @@
             [spectacular.utils :refer [hash-map* key->as]]))
 
 (defn wrap-with-type-hints
-  [gql-type & {:keys [many? required?]}]
+  [gql-type & {:keys [many? optional?]}]
   (cond->> gql-type
-    (or many? required?) (list 'non-null)
-    many?                (list 'list)))
+    many?            (list 'list 'non-null)
+    (not optional?)  (list 'non-null)))
 
 ;;; --------------------------------------------------------------------------------
 
