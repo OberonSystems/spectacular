@@ -11,8 +11,8 @@
 (defn wrap-with-type-hints
   [gql-type & {:keys [many? optional?]}]
   (cond->> gql-type
-    many?            (list 'list 'non-null)
-    (not optional?)  (list 'non-null)))
+    (or many? (not optional?)) (list 'non-null)
+    many?                      (list 'list)))
 
 ;;; --------------------------------------------------------------------------------
 
@@ -51,14 +51,17 @@
                  :type  (-> ref :type first)
                  :many? true)
 
-          :else (throw (ex-info "Invalid reference"
-                                {:ref ref})))]
+          :else (throw (ex-info "Invalid reference" {:ref ref})))]
     (when-not (or (-> ref-type sp/exists?)
                   (-> ref-type namespace nil?))
       (throw (ex-info "Invalid reference type; ref-type must be a register spectacular keyword or an unnamespaced keyword."
                       {:ref-type ref-type
                        :ref      ref})))
-    ref))
+    (if (sp/attr? ref-type)
+      (assoc ref
+             :many?     (or (sp/attr-set? ref-type) (sp/attr-vector? ref-type))
+             :optional? (sp/attr-optional? ref-type))
+      ref)))
 
 (defn enum-ref?
   [ref]
@@ -103,16 +106,16 @@
 
 (defn ref->field
   [{ref-type :type
-    :keys    [description required? many? resolve]
+    :keys    [description optional? many? resolve]
     :as      ref}
    & {:keys [in?]}]
+  ;; (println ref-type optional?)
   (hash-map* :type        (-> ref
                               (ref->field-type      :in?       in?)
                               (wrap-with-type-hints :many?     many?
-                                                    :required? (when in?
-                                                                 (or required?
-                                                                     (and (sp/attr? ref-type)
-                                                                          (-> ref-type (sp/-get ::sp/optional?) not))))))
+                                                    :optional? (if in?
+                                                                 optional?
+                                                                 true)))
              :description (or description
                               (sp/-get ref-type ::description)
                               (sp/-get ref-type ::sp/description))
@@ -175,14 +178,13 @@
                 :description (-description entity-type))]))
 
 (defn field-def->field
-  [{:keys [description required?] :as field-def}
+  [{:keys [description] :as field-def}
    & {:keys [in?]}]
   (cond
     (or (sp/exists?  field-def)
         (entity-ref? field-def))
     (hash-map* (-> (canonicalise-ref field-def)
-                   (ref->field :in?       in?
-                               :required? required?))
+                   (ref->field :in? in?))
                :description description)
     ;;
     (keyword? field-def)
@@ -216,12 +218,11 @@
     :keys       [args description resolve]
     :as         endpoint}]
   (hash-map* :type        (let [{return-type :type
-                                 :keys [many? required?]
+                                 :keys [many?]
                                  :as ref} (canonicalise-ref return-type)]
                             (-> ref
-                                (ref->field-type      :in? false)
-                                (wrap-with-type-hints :many?     many?
-                                                      :required? required?)))
+                                (ref->field-type      :in?   false)
+                                (wrap-with-type-hints :many? many? :optional? true)))
              :args        (fields->fields args :in? true)
              :description description
              :resolve     resolve))

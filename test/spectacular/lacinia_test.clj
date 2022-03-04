@@ -109,8 +109,7 @@
          {:type        :String
           :description "User ID"}))
 
-  (is (= (lc/ref->field {:type :a/user-id :required? true}
-                        :in? true)
+  (is (= (lc/ref->field {:type :a/user-id} :in? true)
          {:type '(non-null :String)}))
   ;;
   ;; Handling lists
@@ -234,14 +233,12 @@
                         :description "Links a user to a Role they can perform."}])))
 
 (deftest objects->objects
-  ;; Need another test here for input-objects that respect the
-  ;; required flag on the fields.
   (let [object {:type        :object-1
                 :description "Blah"
                 :fields      {:pattern :string
-                              :user    :e/user
-                              :user-2  {:type      :e/user
-                                        :required? true}}}]
+                              :user    {:type      :e/user
+                                        :optional? true}
+                              :user-2  :e/user}}]
     (is (= (lc/object->object object)
            '[:Object1 {:fields {:pattern {:type :String}
                                 :user    {:type :User}
@@ -275,8 +272,7 @@
          #{:s/enum-type-1 :s/enum-type-2})))
 
 (def +q1+ {:fetch-user       {:type     :e/user
-                              :args     {:token {:type      :e/user-token
-                                                 :required? true}}
+                              :args     {:token :e/user-token}
                               :resolve  'fetch-user}
            :fetch-user-by-id {:type     :e/user
                               :args     {:user-id :string}
@@ -285,23 +281,18 @@
                               :resolve  'fetch-user}
            ;;
            :fetch-user-roles    {:type     [:e/user-role]
-                                 :args     {:token {:type      :e/user-token
-                                                    :required? true}}
+                                 :args     {:token :e/user-token}
                                  :resolve  'fetch-user-roles}
            :fetch-users-by-role {:type     [:e/user]
-                                 :args     {:role-type {:type      :s/user-role
-                                                        :required? true}}
+                                 :args     {:role-type :s/user-role}
                                  :resolve  'fetch-user-roles}})
 
 (def +m1+ {:add-user    {:type :e/user
-                         :args {:record {:type      :e/user-values
-                                         :required? true}}}
+                         :args {:record :e/user-values}}
            :modify-user {:type :e/user
-                         :args {:record {:type      :e/user
-                                         :required? true}}}
+                         :args {:record :e/user}}
            :remove-user {:type :boolean
-                         :args {:record {:type      :e/user-token
-                                         :required? true}}}})
+                         :args {:record :e/user-token}}})
 
 (deftest endpoint-refs
   (is (= (lc/endpoint-types->refs (merge +q1+ +m1+))
@@ -309,10 +300,10 @@
           {:type :e/user-role :many? true}]))
 
   (is (= (lc/endpoint-args->refs (merge +q1+ +m1+))
-         [{:type :e/user        :required? true}
-          {:type :e/user-token  :required? true}
-          {:type :e/user-values :required? true}
-          {:type :s/user-role   :required? true}])))
+         [{:type :e/user}
+          {:type :e/user-token}
+          {:type :e/user-values}
+          {:type :s/user-role}])))
 
 (deftest generate-schema-1
   (let [{:keys [enums objects input-objects
@@ -372,7 +363,7 @@
                                 :args    {:token {:type (non-null :UserTokenIn)}}
                                 :resolve fetch-user-roles}
              :fetchUsersByRole {:type    (list (non-null :User))
-                                :args    {:roleType {:type :UserRole}}
+                                :args    {:roleType {:type (non-null :UserRole)}}
                                 :resolve fetch-user-roles}}))
     (is (= mutations
            '{:addUser    {:type :User
