@@ -261,6 +261,15 @@
                     args))
              endpoints)))
 
+(defn unions->refs
+  [unions]
+  (some->> unions
+           (map     second)
+           (mapcat :members)
+           distinct
+           sort
+           (mapv   canonicalise-ref)))
+
 (defn referenced-entity-types
   [entity-ref-type ignore]
   (let [child-entities #(->> (sp/attribute-keys %)
@@ -321,12 +330,15 @@
            (map    #(entity-ref->object % :edges (get edges (:type %))))))
 
 (defn generate-schema
-  [{:keys [enums objects edges input-objects
+  [{:keys [enums objects unions edges input-objects
            queries mutations]}]
   (let [endpoints   (merge queries mutations)
         ;;
-        output-refs (-> (endpoint-types->refs endpoints) expand-to-include-referenced-entities)
-        input-refs  (-> (endpoint-args->refs  endpoints) expand-to-include-referenced-entities)
+        output-refs (-> (concat (endpoint-types->refs endpoints)
+                                (unions->refs unions))
+                        expand-to-include-referenced-entities)
+        input-refs  (-> (endpoint-args->refs endpoints)
+                        expand-to-include-referenced-entities)
         ;;
         output-entity-refs (filter entity-ref? output-refs)
         _                  (throw-overlapping :objects objects output-entity-refs)
@@ -359,6 +371,11 @@
                                seq
                                (sort-by first)
                                (into    {}))
+        unions        (some->> unions
+                               (map (fn [[union-name {:keys [members]}]]
+                                      [(csk/->PascalCaseKeyword union-name)
+                                       (->> members sort (mapv csk/->PascalCaseKeyword))]))
+                               (into {}))
         ;;
         input-objects (some->> (concat (map #(object->object     % :in? true) input-objects)
                                        (map #(entity-ref->object % :in? true) input-entity-refs))
@@ -367,6 +384,7 @@
                                (into    {}))]
     (hash-map* :enums         enums
                :objects       objects
+               :unions        unions
                :input-objects input-objects
                :queries       (endpoints->endpoints queries)
                :mutations     (endpoints->endpoints mutations))))

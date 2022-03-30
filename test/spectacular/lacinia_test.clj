@@ -421,3 +421,31 @@
          {:userId    "Test"
           :givenName "Given Name"
           :isCitizen true})))
+
+;;; --------------------------------------------------------------------------------
+;;  Unions
+
+(sp/attribute :a/plant-id :s/string)
+(sp/attribute :a/genus    :s/string)
+(sp/entity :e/plant [:a/plant-id :a/genus])
+
+(sp/attribute :a/animal-id :s/string)
+(sp/attribute :a/breed     :s/string)
+(sp/entity :e/dog [:a/animal-id :a/breed])
+(sp/entity :e/cat [:a/animal-id :a/breed])
+
+(deftest schema-unions
+  (is (= (lc/unions->refs {:pets    {:members [:e/dog :e/cat]}
+                           :animals {:members [:e/dog :e/cat]}})
+         [{:type :e/cat} {:type :e/dog}]))
+
+  (is (= (lc/unions->refs {:pets       {:members [:e/dog :e/cat]}
+                           :animals    {:members [:e/dog :e/cat]}
+                           :belongings {:members [:e/dog :e/cat :e/plant]}})
+         [{:type :e/cat} {:type :e/dog} {:type :e/plant}]))
+
+  (is (= (lc/generate-schema {:unions
+                              {:pets {:members [:e/dog :e/cat]}}})
+         {:objects {:Cat {:fields {:animalId {:type :String}, :breed {:type :String}}},
+                    :Dog {:fields {:animalId {:type :String}, :breed {:type :String}}}}
+          :unions  {:Pets [:Cat :Dog]}})))
