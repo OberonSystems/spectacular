@@ -303,7 +303,7 @@
          (into parent-refs))))
 
 (defn referenced-enum-types
-  [entity-type]
+  [{entity-type :type :as ref}]
   (some->> (sp/attribute-keys entity-type)
            (map sp/get-attribute-type)
            (filter sp/enum?)

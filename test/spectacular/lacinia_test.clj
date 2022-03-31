@@ -268,7 +268,7 @@
   (is (= (lc/referenced-entity-types :e/parent #{})
          #{:e/grand-child :e/child}))
 
-  (is (= (lc/referenced-enum-types :e/grand-child)
+  (is (= (lc/referenced-enum-types {:type :e/grand-child})
          #{:s/enum-type-1 :s/enum-type-2})))
 
 (def +q1+ {:fetch-user       {:type     :e/user
