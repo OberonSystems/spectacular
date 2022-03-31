@@ -435,17 +435,16 @@
 (sp/entity :e/cat [:a/animal-id :a/breed])
 
 (deftest schema-unions
-  (is (= (lc/unions->refs {:pets    {:members [:e/dog :e/cat]}
-                           :animals {:members [:e/dog :e/cat]}})
+  (is (= (lc/unions->refs {:pets    [:e/dog :e/cat]
+                           :animals [:e/dog :e/cat]})
          [{:type :e/cat} {:type :e/dog}]))
 
-  (is (= (lc/unions->refs {:pets       {:members [:e/dog :e/cat]}
-                           :animals    {:members [:e/dog :e/cat]}
-                           :belongings {:members [:e/dog :e/cat :e/plant]}})
+  (is (= (lc/unions->refs {:pets       [:e/dog :e/cat]
+                           :animals    [:e/dog :e/cat]
+                           :belongings [:e/dog :e/cat :e/plant]})
          [{:type :e/cat} {:type :e/dog} {:type :e/plant}]))
 
-  (is (= (lc/generate-schema {:unions
-                              {:pets {:members [:e/dog :e/cat]}}})
+  (is (= (lc/generate-schema {:unions {:pets [:e/dog :e/cat]}})
          {:objects {:Cat {:fields {:animalId {:type :String}, :breed {:type :String}}},
                     :Dog {:fields {:animalId {:type :String}, :breed {:type :String}}}}
-          :unions  {:Pets [:Cat :Dog]}})))
+          :unions  {:Pets {:members [:Cat :Dog]}}})))

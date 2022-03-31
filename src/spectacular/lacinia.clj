@@ -264,8 +264,7 @@
 (defn unions->refs
   [unions]
   (some->> unions
-           (map     second)
-           (mapcat :members)
+           (mapcat second)
            distinct
            sort
            (mapv   canonicalise-ref)))
@@ -372,9 +371,9 @@
                                (sort-by first)
                                (into    {}))
         unions        (some->> unions
-                               (map (fn [[union-name {:keys [members]}]]
+                               (map (fn [[union-name members]]
                                       [(csk/->PascalCaseKeyword union-name)
-                                       (->> members sort (mapv csk/->PascalCaseKeyword))]))
+                                       {:members (->> members sort (mapv csk/->PascalCaseKeyword))}]))
                                (into {}))
         ;;
         input-objects (some->> (concat (map #(object->object     % :in? true) input-objects)
