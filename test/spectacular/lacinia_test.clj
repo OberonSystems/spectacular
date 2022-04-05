@@ -235,7 +235,8 @@
 (deftest objects->objects
   (let [object {:type        :object-1
                 :description "Blah"
-                :fields      {:pattern :string
+                :fields      {:pattern {:type      :string
+                                        :optional? true}
                               :user    {:type      :e/user
                                         :optional? true}
                               :user-2  :e/user}}]
@@ -355,7 +356,7 @@
                                 :args    {:token {:type (non-null :UserTokenIn)}}
                                 :resolve fetch-user}
              :fetchUserById    {:type    :User
-                                :args    {:userId {:type :String}}
+                                :args    {:userId {:type (non-null :String)}}
                                 :resolve fetch-user}
              :fetchUsers       {:type    (list (non-null :User))
                                 :resolve fetch-user}

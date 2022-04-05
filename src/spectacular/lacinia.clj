@@ -182,13 +182,12 @@
    & {:keys [in?]}]
   (cond
     (or (sp/exists?  field-def)
-        (entity-ref? field-def))
+        (entity-ref? field-def)
+        ;; Plain Keywords are just defined with the schema for GQL only.
+        (keyword?    field-def))
     (hash-map* (-> (canonicalise-ref field-def)
                    (ref->field :in? in?))
                :description description)
-    ;;
-    (keyword? field-def)
-    {:type (csk/->PascalCaseKeyword field-def)}
     ;;
     (map? field-def)
     (hash-map* :type        (-> field-def :type csk/->PascalCaseKeyword)
