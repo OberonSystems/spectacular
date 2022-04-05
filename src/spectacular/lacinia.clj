@@ -258,7 +258,14 @@
     (refs-fn (fn [{:keys [args]}]
                (map (fn [[_ v]] (canonicalise-ref v))
                     args))
-             endpoints)))
+             endpoints))
+
+  (defn object-fields->refs
+    [objects]
+    (refs-fn (fn [{:keys [fields]}]
+               (map (fn [[_ v]] (canonicalise-ref v))
+                    fields))
+             objects)))
 
 (defn unions->refs
   [unions]
@@ -333,9 +340,11 @@
   (let [endpoints   (merge queries mutations)
         ;;
         output-refs (-> (concat (endpoint-types->refs endpoints)
+                                (object-fields->refs  objects)
                                 (unions->refs unions))
                         expand-to-include-referenced-entities)
-        input-refs  (-> (endpoint-args->refs endpoints)
+        input-refs  (-> (concat (endpoint-args->refs endpoints)
+                                (object-fields->refs input-objects))
                         expand-to-include-referenced-entities)
         ;;
         output-entity-refs (filter entity-ref? output-refs)
@@ -361,24 +370,22 @@
                                (sort-by first)
                                (into    {}))
         ;;
-        objects       (some->> (concat (map #(-> % (key->as :type) object->object)
-                                            objects)
-                                       (map #(entity-ref->object % :edges (get edges (:type %)))
-                                            output-entity-refs)
+        objects       (some->> (concat (map #(-> % (key->as :type) object->object)               objects)
+                                       (map #(entity-ref->object % :edges (get edges (:type %))) output-entity-refs)
                                        (edge-entity-refs edges))
                                seq
                                (sort-by first)
                                (into    {}))
+        input-objects (some->> (concat (map #(-> % (key->as :type) (object->object :in? true)) input-objects)
+                                       (map #(entity-ref->object % :in? true)                  input-entity-refs))
+                               seq
+                               (sort-by first)
+                               (into    {}))
+        ;;
         unions        (some->> unions
                                (map (fn [[union-name members]]
                                       [(csk/->PascalCaseKeyword union-name)
                                        {:members (->> members sort (mapv csk/->PascalCaseKeyword))}]))
-                               (into {}))
-        ;;
-        input-objects (some->> (concat (map #(object->object     % :in? true) input-objects)
-                                       (map #(entity-ref->object % :in? true) input-entity-refs))
-                               seq
-                               (sort-by first)
                                (into    {}))]
     (hash-map* :enums         enums
                :objects       objects
