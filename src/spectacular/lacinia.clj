@@ -22,6 +22,16 @@
       (sp/-get k ::description)
       (sp/-get k ::sp/description)))
 
+(defn -attr-value
+  [ref-type value-key]
+  ;; Just look the 'thing' up on the ref-type which can be anything.
+  (or (sp/-get ref-type value-key)
+      ;; Special case handling just in case it's an attribute, in
+      ;; which case we also check it.  This is generally what we want.
+      (some-> ref-type
+              sp/get-attribute-type
+              (sp/-get value-key))))
+
 ;;; --------------------------------------------------------------------------------
 
 (defn canonicalise-ref
@@ -156,7 +166,8 @@
 (defn entity-ref->object
   [{entity-type :type :as ref}
    & {:keys [in? edges]}]
-  (let [attribute-fields (->> (sp/attribute-keys entity-type)
+  (let [attribute-fields (->> (concat (sp/attribute-keys entity-type)
+                                      (-attr-value entity-type (if in? ::input-attributes ::output-attributes)))
                               (map canonicalise-ref)
                               (map (fn [{ref-type :type :as ref}]
                                      [(ref-type->field-name ref-type)
@@ -309,7 +320,9 @@
 
 (defn referenced-enum-types
   [{entity-type :type :as ref}]
-  (some->> (sp/attribute-keys entity-type)
+  (some->> (concat (sp/attribute-keys entity-type)
+                   (-attr-value entity-type ::input-attributes)
+                   (-attr-value entity-type ::output-attributes))
            (map sp/get-attribute-type)
            (filter sp/enum?)
            seq
@@ -400,6 +413,11 @@
 (def enum->gql csk/->SCREAMING_SNAKE_CASE_STRING)
 (def enum->clj csk/->kebab-case-keyword)
 
+(def enums->gql #(mapv csk/->SCREAMING_SNAKE_CASE_STRING %))
+(def enums->clj #(mapv csk/->kebab-case-keyword %))
+
+;;;
+
 (defn gql->clj
   [m]
   ;; FIXME: this should also optionally take a map of args that can be
@@ -410,10 +428,11 @@
   [entity-type record]
   ;; Need to coerce the names and the types, need to check with the
   ;; entity about doing extra conversions, like for enums.
-  (->> (sp/attribute-keys entity-type)
+  (->> (concat (sp/attribute-keys entity-type)
+               (-attr-value entity-type ::input-attributes))
        (map (fn [ref-type]
               (let [field-name (ref-type->field-name ref-type)
-                    ->clj      (or (sp/-get ref-type ::->clj) identity)]
+                    ->clj      (or (-attr-value ref-type ::->clj) identity)]
                 [ref-type (some-> (get record field-name)
                                   ->clj)])))
        (into {})))
@@ -422,10 +441,11 @@
   [entity-type record]
   ;; Need to coerce the names and the types, need to check with the
   ;; entity about doing extra conversions, like for enums.
-  (->> (sp/attribute-keys entity-type)
+  (->> (concat (sp/attribute-keys entity-type)
+               (-attr-value entity-type ::output-attributes))
        (map (fn [ref-type]
               (when-let [value (get record ref-type)]
                 (let [field-name (ref-type->field-name ref-type)
-                      ->gql      (or (sp/-get ref-type ::->gql) identity)]
+                      ->gql      (or (-attr-value ref-type ::->gql) identity)]
                   [field-name (some-> value ->gql)]))))
        (into {})))
