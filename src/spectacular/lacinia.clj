@@ -32,6 +32,14 @@
               sp/get-attribute-type
               (sp/-get value-key))))
 
+(defn gql-type-name
+  [k]
+  (csk/->PascalCaseKeyword k))
+
+(defn gql-field-name
+  [k]
+  (csk/->camelCaseKeyword k))
+
 ;;; --------------------------------------------------------------------------------
 
 (defn canonicalise-ref
@@ -88,7 +96,7 @@
   [ref-type]
   (-> (or (sp/-get ref-type ::name)
           ref-type)
-      csk/->camelCaseKeyword))
+      gql-field-name))
 
 (defn ref->field-type
   [{ref-type :type :as ref} &
@@ -112,7 +120,7 @@
     (-> (or (when (and in? (sp/entity? ref-type))
               (str (name ref-type) "-in"))
             ref-type)
-        csk/->PascalCaseKeyword)))
+        gql-type-name)))
 
 (defn ref->field
   [{ref-type :type
@@ -157,7 +165,7 @@
   (when-not values
     (throw (ex-info "Invalid enum; must contain and :values." {:enum-type enum-type
                                                                :enum      enum})))
-  [(csk/->PascalCaseKeyword enum-type)
+  [(gql-type-name enum-type)
    (hash-map* :values      (mapv csk/->SCREAMING_SNAKE_CASE_KEYWORD values)
               :description description)])
 
@@ -201,14 +209,14 @@
                :description description)
     ;;
     (map? field-def)
-    (hash-map* :type        (-> field-def :type csk/->PascalCaseKeyword)
+    (hash-map* :type        (-> field-def :type gql-type-name)
                :description (-> field-def :description))))
 
 (defn fields->fields
   [fields & {:keys [in?]}]
   (some->> fields
            (map (fn [[field-name field-def]]
-                  [(csk/->camelCaseKeyword field-name)
+                  [(gql-field-name field-name)
                    (field-def->field field-def :in? in?)]))
            seq
            (into {})))
@@ -218,7 +226,7 @@
     :keys [fields description]}
    & {:keys [in?]}]
   ;;
-  [(csk/->PascalCaseKeyword object-type)
+  [(gql-type-name object-type)
    (hash-map* :fields      (fields->fields fields :in? in?)
               :description description)])
 
@@ -241,7 +249,7 @@
   [endpoints]
   (some->> endpoints
            (map (fn [[endpoint-name endpoint-def]]
-                  [(csk/->camelCaseKeyword endpoint-name)
+                  [(gql-field-name endpoint-name)
                    (endpoint->endpoint endpoint-def)]))
            seq
            (into {})))
@@ -397,8 +405,8 @@
         ;;
         unions        (some->> unions
                                (map (fn [[union-name members]]
-                                      [(csk/->PascalCaseKeyword union-name)
-                                       {:members (->> members sort (mapv csk/->PascalCaseKeyword))}]))
+                                      [(gql-type-name union-name)
+                                       {:members (->> members sort (mapv gql-type-name))}]))
                                (into    {}))]
     (hash-map* :enums         enums
                :objects       objects
