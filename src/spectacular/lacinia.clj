@@ -454,14 +454,15 @@
   (->> (concat (sp/attribute-keys entity-type)
                (-attr-value entity-type ::output-attributes))
        (map (fn [ref-type]
-              (when-let [value (or (get record ref-type)
+              (let [value (or (get record ref-type)
                                    ;; If we don't find an namespaced
                                    ;; variant we can go for a plain
                                    ;; keyword.  This is often useful
                                    ;; for getting things from maps
                                    ;; returned from databases.
                                    (get record (name->keyword ref-type)))]
+                (when-not (nil? value)
                 (let [field-name (ref-type->field-name ref-type)
                       ->gql      (or (-attr-value ref-type ::->gql) identity)]
-                  [field-name (some-> value ->gql)]))))
+                   [field-name (some-> value ->gql)])))))
        (into {})))
