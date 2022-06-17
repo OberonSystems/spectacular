@@ -434,35 +434,44 @@
 
 (defn gql->entity
   [entity-type record]
-  ;; Need to coerce the names and the types, need to check with the
-  ;; entity about doing extra conversions, like for enums.
-  (->> (concat (sp/attribute-keys entity-type)
-               (-attr-value entity-type ::input-attributes))
-       (map (fn [ref-type]
-              (let [field-name (ref-type->field-name ref-type)
-                    ->clj      (or (-attr-value ref-type ::->clj) identity)]
-                [ref-type (some-> (get record field-name)
-                                  ->clj)])))
-       (into {})))
+  ;; This will get called a lot so check before doing extra work.
+  (when record
+    ;; Need to coerce the names and the types, need to check with the
+    ;; entity about doing extra conversions, like for enums.
+    (some->> (concat (sp/attribute-keys entity-type)
+                     (-attr-value entity-type ::input-attributes))
+             (map (fn [ref-type]
+                    (let [field-name (ref-type->field-name ref-type)
+                          ->clj      (or (-attr-value ref-type ::->clj) identity)]
+                      (when (contains? record field-name)
+                        [ref-type (some-> (get record field-name)
+                                          ->clj)]))))
+             (remove nil?)
+             seq
+             (into {}))))
 
 (def name->keyword (memoize #(-> % name keyword)))
 
 (defn entity->gql
   [entity-type record]
-  ;; Need to coerce the names and the types, need to check with the
-  ;; entity about doing extra conversions, like for enums.
-  (->> (concat (sp/attribute-keys entity-type)
-               (-attr-value entity-type ::output-attributes))
-       (map (fn [ref-type]
-              (let [value (or (get record ref-type)
-                                   ;; If we don't find an namespaced
-                                   ;; variant we can go for a plain
-                                   ;; keyword.  This is often useful
-                                   ;; for getting things from maps
-                                   ;; returned from databases.
-                                   (get record (name->keyword ref-type)))]
-                (when-not (nil? value)
-                (let [field-name (ref-type->field-name ref-type)
-                      ->gql      (or (-attr-value ref-type ::->gql) identity)]
-                   [field-name (some-> value ->gql)])))))
-       (into {})))
+  ;; This will get called a lot so check before doing extra work.
+  (when record
+    ;; Need to coerce the names and the types, need to check with the
+    ;; entity about doing extra conversions, like for enums.
+    (some->> (concat (sp/attribute-keys entity-type)
+                     (-attr-value entity-type ::output-attributes))
+             (map (fn [ref-type]
+                    (let [value (or (get record ref-type)
+                                    ;; If we don't find an namespaced
+                                    ;; variant we can go for a plain
+                                    ;; keyword.  This is often useful
+                                    ;; for getting things from maps
+                                    ;; returned from databases.
+                                    (get record (name->keyword ref-type)))]
+                      (when-not (nil? value)
+                        (let [field-name (ref-type->field-name ref-type)
+                              ->gql      (or (-attr-value ref-type ::->gql) identity)]
+                          [field-name (some-> value ->gql)])))))
+             (remove nil?)
+             seq
+             (into {}))))
