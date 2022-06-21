@@ -203,14 +203,21 @@
     (or (sp/exists?  field-def)
         (entity-ref? field-def)
         ;; Plain Keywords are just defined with the schema for GQL only.
-        (keyword?    field-def))
+        (keyword?    field-def)
+        ;; FIXME: This test is the same as what happens in canonicalise,
+        ;; should this be calling that first?
+        (and (vector? field-def)
+             (= (count field-def) 1)
+             (-> field-def first keyword?)))
     (hash-map* (-> (canonicalise-ref field-def)
                    (ref->field :in? in?))
                :description description)
     ;;
     (map? field-def)
     (hash-map* :type        (-> field-def :type gql-type-name)
-               :description (-> field-def :description))))
+               :description (-> field-def :description))
+    ;;
+    :else (throw (ex-info "FAILED ON" {:field-def field-def}))))
 
 (defn fields->fields
   [fields & {:keys [in?]}]
