@@ -468,12 +468,21 @@
     (some->> (concat (sp/attribute-keys entity-type)
                      (-attr-value entity-type ::output-attributes))
              (map (fn [ref-type]
-                    (let [value (or (get record ref-type)
-                                    ;; If we don't find an namespaced
-                                    ;; variant we can go for a plain
-                                    ;; keyword.  This is often useful
-                                    ;; for getting things from maps
-                                    ;; returned from databases.
+                    (let [value (if (contains? record ref-type)
+                                  (get record ref-type)
+                                  ;; We need to test on the presence
+                                  ;; of the key rather than the value
+                                  ;; as we don't want a nil or false
+                                  ;; overridden by a non-namespaced
+                                  ;; variant.
+                                  ;;
+                                  ;; If record doesn't contain the
+                                  ;; namespaced variant then we can go
+                                  ;; for a plain keyword.
+                                  ;;
+                                  ;; This is often useful for getting
+                                  ;; things from maps returned from
+                                  ;; databases.
                                     (get record (name->keyword ref-type)))]
                       (when-not (nil? value)
                         (let [field-name (ref-type->field-name ref-type)
