@@ -40,6 +40,14 @@
   [k]
   (csk/->camelCaseKeyword k))
 
+(defn get-input-attributes
+  [entity-type]
+  (-attr-value entity-type ::input-attributes))
+
+(defn get-output-attributes
+  [entity-type]
+  (-attr-value entity-type ::output-attributes))
+
 ;;; --------------------------------------------------------------------------------
 
 (defn canonicalise-ref
@@ -175,7 +183,9 @@
   [{entity-type :type :as ref}
    & {:keys [in? edges]}]
   (let [attribute-fields (->> (concat (sp/attribute-keys entity-type)
-                                      (-attr-value entity-type (if in? ::input-attributes ::output-attributes)))
+                                      (if in?
+                                        (get-input-attributes  entity-type)
+                                        (get-output-attributes entity-type)))
                               (map canonicalise-ref)
                               (map (fn [{ref-type :type :as ref}]
                                      [(ref-type->field-name ref-type)
@@ -336,8 +346,8 @@
 (defn referenced-enum-types
   [{entity-type :type :as ref}]
   (some->> (concat (sp/attribute-keys entity-type)
-                   (-attr-value entity-type ::input-attributes)
-                   (-attr-value entity-type ::output-attributes))
+                   (get-input-attributes  entity-type)
+                   (get-output-attributes entity-type))
            (map sp/get-attribute-type)
            (filter sp/enum?)
            seq
@@ -446,7 +456,7 @@
     ;; Need to coerce the names and the types, need to check with the
     ;; entity about doing extra conversions, like for enums.
     (some->> (concat (sp/attribute-keys entity-type)
-                     (-attr-value entity-type ::input-attributes))
+                     (get-input-attributes entity-type))
              (map (fn [ref-type]
                     (let [field-name (ref-type->field-name ref-type)
                           ->clj      (or (-attr-value ref-type ::->clj) identity)]
