@@ -10,6 +10,9 @@
       (s/replace "_" " ")
       s/trim))
 
+(def ns-keyword->keyword
+  (memoize #(-> % name keyword)))
+
 (defn hash-map*
   [& [head & tail :as params]]
   (let [[head tail] (if (-> params count odd?)

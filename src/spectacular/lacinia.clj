@@ -467,36 +467,22 @@
              seq
              (into {}))))
 
-(def name->keyword (memoize #(-> % name keyword)))
-
 (defn entity->gql
-  [entity-type record]
+  [entity]
   ;; This will get called a lot so check before doing extra work.
-  (when record
-    ;; Need to coerce the names and the types, need to check with the
-    ;; entity about doing extra conversions, like for enums.
-    (some->> (concat (sp/attribute-keys entity-type)
-                     (-attr-value entity-type ::output-attributes))
+  (when map
+    ;; For any keys that are registered attributes with name and gql
+    ;; translations, translate them, otherwise just let them pass
+    ;; through.
+    (some->> (keys entity)
              (map (fn [ref-type]
-                    (let [value (if (contains? record ref-type)
-                                  (get record ref-type)
-                                  ;; We need to test on the presence
-                                  ;; of the key rather than the value
-                                  ;; as we don't want a nil or false
-                                  ;; overridden by a non-namespaced
-                                  ;; variant.
-                                  ;;
-                                  ;; If record doesn't contain the
-                                  ;; namespaced variant then we can go
-                                  ;; for a plain keyword.
-                                  ;;
-                                  ;; This is often useful for getting
-                                  ;; things from maps returned from
-                                  ;; databases.
-                                    (get record (name->keyword ref-type)))]
+                    (let [value (ref-type entity)]
+                      ;; We want to let false values through
                       (when-not (nil? value)
                         (let [field-name (ref-type->field-name ref-type)
-                              ->gql      (or (-attr-value ref-type ::->gql) identity)]
+                              ->gql      (or (and (sp/attr? ref-type)
+                                                  (-attr-value ref-type ::->gql))
+                                             identity)]
                           [field-name (some-> value ->gql)])))))
              (remove nil?)
              seq

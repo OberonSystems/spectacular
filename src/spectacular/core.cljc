@@ -3,7 +3,7 @@
             [clojure.spec.alpha :as s]
             [clojure.set :refer [subset? intersection union difference]]
             ;;
-            [spectacular.utils :refer [keyword->label]]))
+            [spectacular.utils :refer [keyword->label ns-keyword->keyword]]))
 
 ;;;
 
@@ -300,3 +300,36 @@
                                           ;;
                                           ::values?       true
                                           ::value-keys    ~value-ks)))))
+
+;;; --------------------------------------------------------------------------------
+
+(defn map->entity
+  [entity-type m & {:keys [extras]}]
+  (some->> (concat (attribute-keys entity-type)
+                   ;; It's handy to be able to also provide a way for
+                   ;; our caller to include some extra attributes that
+                   ;; they might be interested in.
+                   extras)
+           (map (fn [ref-type]
+                  (let [value (if (contains? m ref-type)
+                                (get m ref-type)
+                                ;; We need to test on the presence
+                                ;; of the key rather than the value
+                                ;; as we don't want a nil or false
+                                ;; overridden by a non-namespaced
+                                ;; variant.
+                                ;;
+                                ;; If m doesn't contain the
+                                ;; namespaced variant then we can go
+                                ;; for a plain keyword.
+                                ;;
+                                ;; This is often useful for getting
+                                ;; things from maps returned from
+                                ;; databases.
+                                (get m (ns-keyword->keyword ref-type)))]
+                    ;; We want to let false values through
+                    (when-not (nil? value)
+                      [ref-type value]))))
+           (remove nil?)
+           seq
+           (into {})))
