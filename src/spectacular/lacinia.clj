@@ -435,11 +435,34 @@
 ;;; --------------------------------------------------------------------------------
 ;;  Utils that can be used when configuring the LC integration
 
-(def enum->gql csk/->SCREAMING_SNAKE_CASE_STRING)
-(def enum->clj csk/->kebab-case-keyword)
+(defn enum->gql
+  [kw]
+  (some-> kw
+          csk/->SCREAMING_SNAKE_CASE_STRING))
 
-(def enums->gql #(mapv csk/->SCREAMING_SNAKE_CASE_STRING %))
-(def enums->clj #(mapv csk/->kebab-case-keyword %))
+(defn enum->clj
+  [kw & {:keys [ns]}]
+  (some->> kw
+           csk/->kebab-case-string
+           (keyword ns)))
+
+(defn enums->gql
+  [kws]
+  (->> kws
+       (mapv enum->gql)
+       (remove nil?)
+       sort
+       seq))
+
+(defn enums->clj
+  [kws & {:keys [set? ns]}]
+  (when-not (empty? kws)
+    (cond-> (->> kws
+                 (map #(enum->clj % :ns ns))
+                 (remove nil?)
+                 sort
+                 seq)
+      set? set)))
 
 ;;;
 
