@@ -470,7 +470,7 @@
 (defn entity->gql
   [entity]
   ;; This will get called a lot so check before doing extra work.
-  (when map
+  (when entity
     ;; For any keys that are registered attributes with name and gql
     ;; translations, translate them, otherwise just let them pass
     ;; through.
