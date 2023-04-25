@@ -130,6 +130,14 @@
   [k]
   (-get k ::value-keys))
 
+(defn get-entity-identity
+  [entity-key record]
+  (select-keys record (identity-keys entity-key)))
+
+(defn get-entity-values
+  [entity-key record]
+  (select-keys record (value-keys entity-key)))
+
 ;;; --------------------------------------------------------------------------------
 ;;; Enum specific helpers
 
