@@ -1,9 +1,11 @@
 {:paths ["src" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.10.1"}
         ;;
-        camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.2"}}
- :aliases
- { ;;
+        camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.2"}
+        ;;
+        oberon/oberon {:git/url "https://github.com/OberonSystems/oberon-utils"
+                       :git/sha "88ed170ca9d1da50c342e50ca732fb1c547f4dfb"}}
+ :aliases { ;;
   ;; -- Testing
   ;; clojure -M:test:runner-clj
   ;; clojure -M:test:runner-cljs

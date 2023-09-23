@@ -3,6 +3,8 @@
             [clojure.spec.alpha :as s]
             [clojure.set :refer [subset? intersection union difference]]
             ;;
+            [oberon.utils :refer [nil-when->]]
+            ;;
             [spectacular.utils :refer [keyword->label ns-keyword->keyword]]))
 
 ;;;
@@ -132,11 +134,13 @@
 
 (defn get-entity-identity
   [entity-key record]
-  (select-keys record (identity-keys entity-key)))
+  (-> (select-keys record (identity-keys entity-key))
+      (nil-when-> empty?)))
 
 (defn get-entity-values
   [entity-key record]
-  (select-keys record (value-keys entity-key)))
+  (-> (select-keys record (value-keys entity-key))
+      (nil-when-> empty?)))
 
 ;;; --------------------------------------------------------------------------------
 ;;; Enum specific helpers
