@@ -1,6 +1,7 @@
 (ns spectacular.lacinia
   (:require [clojure.string :as s]
             [clojure.set :refer [union difference intersection]]
+            [clojure.walk :refer [postwalk]]
             ;;
             [camel-snake-kebab.core :as csk]
             [camel-snake-kebab.extras :as cske]
@@ -352,6 +353,39 @@
            (filter sp/enum?)
            seq
            set))
+
+;;; --------------------------------------------------------------------------------
+
+(defn resolvable?
+  [x]
+  (and (map-entry? x)
+       (let [[k v] x]
+         (and (map? v)
+              (contains? v :resolve)))))
+
+(defn resolvable-parent-key
+  [resolvable]
+  (-> (meta resolvable)
+      ::parent-key))
+
+(defn with-parent-key
+  [[k resolvable]]
+  (with-meta resolvable
+    {::parent-key resolvable}))
+
+(defn postwalk-resolvables
+  "Postwalks the schema applying `wrap-resolvable` to all map-entries
+  that have map `value` with a `resolve` key.
+
+  Replacing the map `value` with the return value of `wrap-resolvable`."
+  [schema wrap-resolvable]
+  (postwalk #(cond
+               (resolvable? %)
+               [(first %)
+                (-> % with-parent-key wrap-resolvable)]
+               ;;
+               :else %)
+            schema))
 
 ;;; --------------------------------------------------------------------------------
 
