@@ -11,22 +11,18 @@
 
 ;;; --------------------------------------------------------------------------------
 
-(defn command-type-dispatcher
-  [{:keys [command-type version] :as command}]
-  [command-type version])
-
 (defmulti process-command
   "Processes the command into the database.
 
   Should take care of any type coercions that aren't handled by default."
   {:arglists '([command])}
-  command-type-dispatcher)
+  ch/command-type-dispatcher)
 
 (defmethod process-command :default
   [command]
   (throw (ex-info "Don't know how to process command."
                   {:command        command
-                   :dispatch-value (command-type-dispatcher command)})))
+                   :dispatch-value (ch/command-type-dispatcher command)})))
 
 ;;; --------------------------------------------------------------------------------
 
