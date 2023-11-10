@@ -469,6 +469,19 @@
 ;;; --------------------------------------------------------------------------------
 ;;  Utils that can be used when configuring the LC integration
 
+(defn keyword->gql
+  [kw]
+  (let [ns (namespace kw)
+        n  (name kw)]
+    (if ns
+      (format "%s/%s" ns n)
+      n)))
+
+(defn keyword->clj
+  [kws]
+  (->> (s/split kws #"/")
+       (apply keyword)))
+
 (defn enum->gql
   [kw]
   (some-> kw
