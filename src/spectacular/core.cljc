@@ -255,8 +255,9 @@
                               ["Cannot register an entity with invalid attributes; all attributes must be namespaced keywords."]
 
                               (not (every? attr? attribute-ks))
-                              ["Cannot register an entity with unregistered attributes."
-                               {:unregistered (->> attribute-ks (remove attr?))}]
+                              (let [unregistered (->> attribute-ks (remove attr?) set)]
+                                [(format "Cannot register an entity with unregistered attributes: %s." unregistered)
+                                 {:unregistered unregistered}])
 
                               (not (subset? identity-set attribute-set))
                               ["Identity Keys must be a subset of Attribute Keys"]
