@@ -204,8 +204,8 @@
                      (not (or (scalar? t) (entity? t)))
                      "Attribute must be associated with a registered scalar or entity."
                      ;;
-                     (and is-set? (!scalar? t))
-                     "The set? flag can only be used with scalar attributes."
+                     (and is-set? (not (or (scalar? t) (entity? t))))
+                     "The set? flag can only be used with registered scalars or entities."
                      ;;
                      (and count (or min-count max-count))
                      "Cannot pass count and min/max-count."
